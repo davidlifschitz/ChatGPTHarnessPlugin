@@ -191,13 +191,26 @@ export function parseRun(value: unknown): ParsedRun {
   };
 }
 
-function feature(
-  raw: JsonObject,
-  features: JsonObject,
-  endpoints: JsonObject,
-  ...names: readonly string[]
-): boolean {
-  return names.some((name) => raw[name] === true || features[name] === true || endpoints[name] === true);
+function booleanFeature(raw: JsonObject, features: JsonObject, name: string): boolean {
+  return raw[name] === true || features[name] === true;
+}
+
+function endpointObject(endpoints: JsonObject, name: string): boolean {
+  const value = endpoints[name];
+  return (
+    value === true ||
+    (typeof value === "string" && value.trim().length > 0) ||
+    (value !== null && typeof value === "object" && !Array.isArray(value))
+  );
+}
+
+function sessionContinuityFeature(raw: JsonObject, features: JsonObject, endpoints: JsonObject): boolean {
+  if (booleanFeature(raw, features, "session_continuity")) return true;
+  for (const source of [raw, features, endpoints]) {
+    const value = source.session_continuity_header;
+    if (value === true || (typeof value === "string" && value.trim().length > 0)) return true;
+  }
+  return false;
 }
 
 export function parseCapabilities(value: unknown): ParsedCapabilities {
@@ -213,18 +226,12 @@ export function parseCapabilities(value: unknown): ParsedCapabilities {
       ? {}
       : protocolObject(endpointValue, "GET /v1/capabilities response.endpoints");
   const parsedFeatures: CapabilityFlags = {
-    runSubmission: feature(raw, features, endpoints, "run_submission"),
-    runStatus: feature(raw, features, endpoints, "run_status"),
-    runEventsSse: feature(raw, features, endpoints, "run_events_sse"),
-    runStop: feature(raw, features, endpoints, "run_stop"),
-    runApproval: feature(raw, features, endpoints, "run_approval_response", "run_approval"),
-    sessionContinuity: feature(
-      raw,
-      features,
-      endpoints,
-      "session_continuity",
-      "session_continuity_header",
-    ),
+    runSubmission: booleanFeature(raw, features, "run_submission"),
+    runStatus: booleanFeature(raw, features, "run_status"),
+    runEventsSse: booleanFeature(raw, features, "run_events_sse"),
+    runStop: booleanFeature(raw, features, "run_stop"),
+    runApproval: booleanFeature(raw, features, "run_approval_response") || endpointObject(endpoints, "run_approval"),
+    sessionContinuity: sessionContinuityFeature(raw, features, endpoints),
   };
   const platform = optionalString(raw, "platform", "GET /v1/capabilities response");
   const model = optionalString(raw, "model", "GET /v1/capabilities response");
@@ -247,20 +254,38 @@ export function parseHealth(value: unknown): ParsedHealth {
   if (typeof ok !== "boolean" && rawStatus === undefined) {
     throw new HermesProtocolError("GET /health response must include status, ok, or healthy");
   }
-  const available =
-    typeof ok === "boolean"
-      ? ok
-      : rawStatus !== "error" &&
-        rawStatus !== "unavailable" &&
-        rawStatus !== "down" &&
-        rawStatus !== "not_ready";
-  const status = !available
-    ? "unavailable"
-    : rawStatus === "degraded" || rawStatus === "warning"
-      ? "degraded"
-      : "available";
+  let available: boolean;
+  let status: ParsedHealth["status"];
+  if (rawStatus !== undefined) {
+    if (["ok", "healthy", "available", "ready"].includes(rawStatus)) {
+      available = true;
+      status = "available";
+    } else if (["degraded", "warning"].includes(rawStatus)) {
+      available = true;
+      status = "degraded";
+    } else if (["error", "unavailable", "down", "not_ready"].includes(rawStatus)) {
+      available = false;
+      status = "unavailable";
+    } else {
+      throw new HermesProtocolError(`GET /health response.status ${rawStatus} is not recognized`);
+    }
+  } else {
+    available = ok as boolean;
+    status = available ? "available" : "unavailable";
+  }
   return { available, status, raw };
 }
+
+const CONTROL_STATUSES = new Set([
+  "stopping",
+  "stopped",
+  "cancelled",
+  "approved",
+  "denied",
+  "pending",
+  "resolved",
+  "failed",
+]);
 
 export function parseControlResponse(value: unknown, fallbackStatus: string): ParsedControlResponse {
   if (value === null || value === undefined) {
@@ -272,10 +297,21 @@ export function parseControlResponse(value: unknown, fallbackStatus: string): Pa
     if (responseStatus.trim().length === 0) {
       throw new HermesProtocolError("Hermes run control response.status must not be empty");
     }
-    return { status: responseStatus.trim(), raw };
+    const normalizedStatus = responseStatus.trim().toLowerCase();
+    if (!CONTROL_STATUSES.has(normalizedStatus)) {
+      throw new HermesProtocolError(`Hermes run control response.status ${normalizedStatus} is not recognized`);
+    }
+    return { status: normalizedStatus, raw };
   }
-  if ((typeof raw.choice === "string" && raw.choice.trim().length > 0) || typeof raw.resolved === "number") {
-    return { status: fallbackStatus, raw };
+  if (
+    (typeof raw.choice === "string" && raw.choice.trim().length > 0) ||
+    typeof raw.resolved === "boolean"
+  ) {
+    const normalizedFallback = fallbackStatus.trim().toLowerCase();
+    if (!CONTROL_STATUSES.has(normalizedFallback)) {
+      throw new HermesProtocolError(`Hermes fallback control status ${normalizedFallback} is not recognized`);
+    }
+    return { status: normalizedFallback, raw };
   }
   throw new HermesProtocolError("Hermes run control response.status is required");
 }
@@ -355,4 +391,20 @@ export async function* parseSse(
 
 export function isTerminalStatus(status: RunStatus): boolean {
   return status === "completed" || status === "failed" || status === "cancelled";
+}
+
+export function isTerminalEvent(event: ParsedSseEvent): boolean {
+  const expected =
+    event.event === "run.completed"
+      ? "completed"
+      : event.event === "run.failed"
+        ? "failed"
+        : event.event === "run.cancelled"
+          ? "cancelled"
+          : undefined;
+  if (expected === undefined || typeof event.data !== "object" || event.data === null || Array.isArray(event.data)) {
+    return false;
+  }
+  const eventStatus = event.data.status;
+  return typeof eventStatus === "string" && normalizeStatus(eventStatus) === expected;
 }

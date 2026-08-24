@@ -13,10 +13,8 @@ export type RunStatus =
   | "cancelled"
   | "unknown";
 
-export interface RuntimeAuth {
-  /** Supplied by the caller for one operation; never stored by the adapter. */
-  readonly apiKey: string;
-}
+/** Opaque caller-supplied authentication context; a runtime adapter owns its shape. */
+export type RuntimeAuth = unknown;
 
 export interface RuntimeRef {
   readonly runtimeId: string;

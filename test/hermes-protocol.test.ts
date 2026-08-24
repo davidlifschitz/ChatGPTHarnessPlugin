@@ -5,6 +5,8 @@ import {
   HermesAdapter,
   HermesError,
   HermesHttpClient,
+  parseControlResponse,
+  parseHealth,
   parseSse,
 } from "../src/index.js";
 
@@ -78,6 +80,43 @@ test("capabilities and health normalize Hermes protocol fields", async () => {
     fixtures.requests.map((request) => `${request.method} ${new URL(request.url).pathname}`),
     ["GET /v1/capabilities", "GET /health"],
   );
+});
+
+test("capability parsing accepts official endpoint metadata without broad aliases", async () => {
+  const fixtures = queuedFetch([
+    jsonResponse({
+      features: { run_submission: true, run_status: true, run_events_sse: true },
+      endpoints: {
+        run_approval: { method: "POST" },
+        session_continuity_header: "X-Hermes-Session-Id",
+        run_cancel: { method: "POST" },
+        session_chat: true,
+      },
+    }),
+  ]);
+  const capabilities = await adapter(fixtures.fetchImpl).capabilities(AUTH);
+
+  assert.equal(capabilities.features.runApproval, true);
+  assert.equal(capabilities.features.sessionContinuity, true);
+  assert.equal(capabilities.features.runStop, false);
+});
+
+test("malformed health and control responses fail with protocol errors", () => {
+  assert.throws(() => parseHealth({ status: "mystery" }), (error: unknown) => {
+    assert.ok(error instanceof HermesError);
+    assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
+    return true;
+  });
+  assert.throws(() => parseControlResponse({}, "approved"), (error: unknown) => {
+    assert.ok(error instanceof HermesError);
+    assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
+    return true;
+  });
+  assert.throws(() => parseControlResponse({ status: "mystery" }, "approved"), (error: unknown) => {
+    assert.ok(error instanceof HermesError);
+    assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
+    return true;
+  });
 });
 
 test("getResult and continueSession preserve explicit session and run identities", async () => {
@@ -262,6 +301,27 @@ test("HTTP errors are normalized without exposing the runtime API key", async ()
       return true;
     },
   );
+});
+
+test("network and invalid-JSON diagnostics stay bounded and redacted", async () => {
+  const networkRuntime = adapter(async () => {
+    throw new Error("connection failed for Bearer fixture-api-key");
+  });
+  await assert.rejects(networkRuntime.capabilities(AUTH), (error: unknown) => {
+    assert.ok(error instanceof HermesError);
+    assert.equal(error.code, "RUNTIME_UNAVAILABLE");
+    assert.equal(JSON.stringify(error).includes("fixture-api-key"), false);
+    assert.equal(JSON.stringify(error).includes("connection failed"), true);
+    return true;
+  });
+
+  const invalidJson = queuedFetch([new Response("Bearer fixture-api-key", { status: 200 })]);
+  await assert.rejects(adapter(invalidJson.fetchImpl).capabilities(AUTH), (error: unknown) => {
+    assert.ok(error instanceof HermesError);
+    assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
+    assert.equal(JSON.stringify(error).includes("fixture-api-key"), false);
+    return true;
+  });
 });
 
 test("request timeout is bounded and normalized", async () => {

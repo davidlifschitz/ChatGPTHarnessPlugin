@@ -5,6 +5,11 @@ export interface HermesHttpClientOptions {
   readonly fetch?: typeof fetch;
 }
 
+/** Runtime-only Hermes API-server authentication. Never persist or serialize this value. */
+export interface HermesRuntimeAuth {
+  readonly apiKey: string;
+}
+
 export interface HermesAdapterOptions extends HermesHttpClientOptions {
   readonly runtimeId: string;
 }

@@ -2,6 +2,7 @@ import {
   HermesProtocolError,
   RuntimeMismatchError,
   UnsupportedOperationError,
+  authRequired,
   invalidRequest,
   toRuntimeErrorInfo,
 } from "./errors.js";
@@ -23,7 +24,7 @@ import type {
   SessionRef,
   StartRunRequest,
 } from "./types.js";
-import type { HermesAdapterOptions } from "./hermes-types.js";
+import type { HermesAdapterOptions, HermesRuntimeAuth } from "./hermes-types.js";
 
 export class HermesAdapter implements RuntimeAdapter {
   readonly runtimeId: string;
@@ -43,7 +44,7 @@ export class HermesAdapter implements RuntimeAdapter {
   }
 
   async capabilities(auth: RuntimeAuth): Promise<RuntimeCapabilities> {
-    const capabilities = await this.client.getCapabilities(auth);
+    const capabilities = await this.client.getCapabilities(this.hermesAuth(auth));
     return {
       runtimeId: this.runtimeId,
       ...(capabilities.platform === undefined ? {} : { platform: capabilities.platform }),
@@ -55,7 +56,7 @@ export class HermesAdapter implements RuntimeAdapter {
 
   async health(auth: RuntimeAuth): Promise<RuntimeHealth> {
     try {
-      const health = await this.client.getHealth(auth);
+      const health = await this.client.getHealth(this.hermesAuth(auth));
       return {
         runtimeId: this.runtimeId,
         available: health.available,
@@ -78,14 +79,14 @@ export class HermesAdapter implements RuntimeAdapter {
 
   async startRun(request: StartRunRequest, auth: RuntimeAuth): Promise<RunHandle> {
     await this.requireCapability(auth, "runSubmission", "startRun", "run_submission");
-    const started = await this.client.startRun(request, auth);
+    const started = await this.client.startRun(request, this.hermesAuth(auth));
     return this.handle(started.runId, started.sessionId ?? request.sessionId);
   }
 
   async getRun(handle: RunHandle, auth: RuntimeAuth): Promise<RunSnapshot> {
     this.assertRunHandle(handle);
     await this.requireCapability(auth, "runStatus", "getRun", "run_status");
-    const run = await this.client.getRun(handle.runId, auth);
+    const run = await this.client.getRun(handle.runId, this.hermesAuth(auth));
     if (run.runId !== handle.runId) {
       throw new HermesProtocolError(
         `GET /v1/runs/{id} returned run_id ${run.runId} for requested run ${handle.runId}`,
@@ -139,7 +140,7 @@ export class HermesAdapter implements RuntimeAdapter {
   async *streamEvents(handle: RunHandle, auth: RuntimeAuth): AsyncGenerator<RuntimeEvent, void, undefined> {
     this.assertRunHandle(handle);
     await this.requireCapability(auth, "runEventsSse", "streamEvents", "run_events_sse");
-    for await (const event of this.client.streamRunEvents(handle.runId, auth)) {
+      for await (const event of this.client.streamRunEvents(handle.runId, this.hermesAuth(auth))) {
       yield {
         runtimeId: this.runtimeId,
         runId: handle.runId,
@@ -161,7 +162,7 @@ export class HermesAdapter implements RuntimeAdapter {
     if (!capabilities.features.runStop) {
       throw new UnsupportedOperationError("cancelRun", "run_stop");
     }
-    const response = await this.client.stopRun(handle.runId, auth);
+    const response = await this.client.stopRun(handle.runId, this.hermesAuth(auth));
     return {
       handle,
       status: response.status,
@@ -179,7 +180,7 @@ export class HermesAdapter implements RuntimeAdapter {
     if (!capabilities.features.runApproval) {
       throw new UnsupportedOperationError("approveRun", "run_approval_response");
     }
-    const response = await this.client.approveRun(handle.runId, request, auth);
+    const response = await this.client.approveRun(handle.runId, request, this.hermesAuth(auth));
     return {
       handle,
       status: response.status,
@@ -236,5 +237,17 @@ export class HermesAdapter implements RuntimeAdapter {
     if (!capabilities.features[capability]) {
       throw new UnsupportedOperationError(operation, featureName);
     }
+  }
+
+  private hermesAuth(auth: RuntimeAuth): HermesRuntimeAuth {
+    if (
+      auth === null ||
+      typeof auth !== "object" ||
+      typeof (auth as { readonly apiKey?: unknown }).apiKey !== "string" ||
+      (auth as { readonly apiKey: string }).apiKey.trim().length === 0
+    ) {
+      throw authRequired();
+    }
+    return { apiKey: (auth as { readonly apiKey: string }).apiKey };
   }
 }

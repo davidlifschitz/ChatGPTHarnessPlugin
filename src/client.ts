@@ -15,6 +15,7 @@ import {
   parseRun,
   parseSse,
   parseStartRun,
+  isTerminalEvent,
   type ParsedCapabilities,
   type ParsedControlResponse,
   type ParsedHealth,
@@ -25,10 +26,9 @@ import {
 import type {
   ApprovalRequest,
   JsonObject,
-  RuntimeAuth,
   StartRunRequest,
 } from "./types.js";
-import type { HermesHttpClientOptions } from "./hermes-types.js";
+import type { HermesHttpClientOptions, HermesRuntimeAuth } from "./hermes-types.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_TIMEOUT_MS = 300_000;
@@ -40,7 +40,7 @@ interface PendingResponse {
   readonly cleanup: () => void;
 }
 
-function requireApiKey(auth: RuntimeAuth): string {
+function requireApiKey(auth: HermesRuntimeAuth): string {
   if (!auth || typeof auth.apiKey !== "string" || auth.apiKey.trim().length === 0) {
     throw authRequired();
   }
@@ -85,12 +85,26 @@ function errorDetails(body: string, apiKey: string): JsonObject | undefined {
   return { body: sanitized.slice(0, 1_024) };
 }
 
-function parseJsonBody(text: string, path: string): unknown {
+function safeCauseDetails(error: unknown, apiKey: string): JsonObject | undefined {
+  const summary =
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : typeof error === "string"
+        ? error
+        : undefined;
+  return summary === undefined ? undefined : errorDetails(summary, apiKey);
+}
+
+function parseJsonBody(text: string, path: string, apiKey: string): unknown {
   if (text.trim().length === 0) return null;
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    throw new HermesProtocolError(`${path} returned invalid JSON`);
+    const details = errorDetails(text, apiKey);
+    throw new HermesProtocolError(
+      `${path} returned invalid JSON`,
+      details === undefined ? {} : { details },
+    );
   }
 }
 
@@ -131,17 +145,17 @@ export class HermesHttpClient {
     this.fetchImpl = fetchImpl;
   }
 
-  async getCapabilities(auth: RuntimeAuth): Promise<ParsedCapabilities> {
+  async getCapabilities(auth: HermesRuntimeAuth): Promise<ParsedCapabilities> {
     const value = await this.requestJson("GET", "/v1/capabilities", auth);
     return parseCapabilities(value);
   }
 
-  async getHealth(auth: RuntimeAuth): Promise<ParsedHealth> {
+  async getHealth(auth: HermesRuntimeAuth): Promise<ParsedHealth> {
     const value = await this.requestJson("GET", "/health", auth);
     return parseHealth(value);
   }
 
-  async startRun(request: StartRunRequest, auth: RuntimeAuth): Promise<ParsedStartRun> {
+  async startRun(request: StartRunRequest, auth: HermesRuntimeAuth): Promise<ParsedStartRun> {
     if (typeof request.input !== "string" || request.input.trim().length === 0) {
       throw invalidRequest("startRun input must be a non-empty string");
     }
@@ -161,13 +175,13 @@ export class HermesHttpClient {
     return parseStartRun(value, request.sessionId);
   }
 
-  async getRun(runId: string, auth: RuntimeAuth): Promise<ParsedRun> {
+  async getRun(runId: string, auth: HermesRuntimeAuth): Promise<ParsedRun> {
     validateRunId(runId);
     const value = await this.requestJson("GET", this.runPath(runId), auth);
     return parseRun(value);
   }
 
-  async stopRun(runId: string, auth: RuntimeAuth): Promise<ParsedControlResponse> {
+  async stopRun(runId: string, auth: HermesRuntimeAuth): Promise<ParsedControlResponse> {
     validateRunId(runId);
     const value = await this.requestJson("POST", `${this.runPath(runId)}/stop`, auth, {});
     return parseControlResponse(value, "stopping");
@@ -176,14 +190,14 @@ export class HermesHttpClient {
   async approveRun(
     runId: string,
     request: ApprovalRequest,
-    auth: RuntimeAuth,
+    auth: HermesRuntimeAuth,
   ): Promise<ParsedControlResponse> {
     validateRunId(runId);
     const value = await this.requestJson("POST", `${this.runPath(runId)}/approval`, auth, { ...request });
     return parseControlResponse(value, "approved");
   }
 
-  async *streamRunEvents(runId: string, auth: RuntimeAuth): AsyncGenerator<ParsedSseEvent, void, undefined> {
+  async *streamRunEvents(runId: string, auth: HermesRuntimeAuth): AsyncGenerator<ParsedSseEvent, void, undefined> {
     validateRunId(runId);
     const method = "GET";
     const path = `${this.runPath(runId)}/events`;
@@ -195,7 +209,7 @@ export class HermesHttpClient {
           method,
           path,
           pending.response.status,
-          pending.response.statusText,
+          redactSecrets(pending.response.statusText, requireApiKey(auth)).slice(0, 256),
           errorDetails(body, requireApiKey(auth)),
         );
       }
@@ -227,9 +241,7 @@ export class HermesHttpClient {
 
       let terminalEventSeen = false;
       for await (const event of parseSse(chunks())) {
-        if (event.event === "run.completed" || event.event === "run.failed" || event.event === "run.cancelled") {
-          terminalEventSeen = true;
-        }
+        if (isTerminalEvent(event)) terminalEventSeen = true;
         yield event;
       }
       if (!terminalEventSeen) {
@@ -240,7 +252,7 @@ export class HermesHttpClient {
       if (pending.controller.signal.aborted) {
         throw new HermesTimeoutError(method, path, this.timeoutMs);
       }
-      throw new HermesNetworkError(method, path);
+      throw new HermesNetworkError(method, path, safeCauseDetails(error, requireApiKey(auth)));
     } finally {
       pending.cleanup();
     }
@@ -271,18 +283,18 @@ export class HermesHttpClient {
   private async requestJson(
     method: string,
     path: string,
-    auth: RuntimeAuth,
+    auth: HermesRuntimeAuth,
     body?: Record<string, unknown>,
   ): Promise<unknown> {
     return this.withResponse(method, path, auth, "application/json", body, async (response) => {
-      return parseJsonBody(await response.text(), path);
+      return parseJsonBody(await response.text(), path, requireApiKey(auth));
     });
   }
 
   private async openRequest(
     method: string,
     path: string,
-    auth: RuntimeAuth,
+    auth: HermesRuntimeAuth,
     accept: string,
     body?: Record<string, unknown>,
   ): Promise<PendingResponse> {
@@ -315,14 +327,14 @@ export class HermesHttpClient {
     } catch (error) {
       cleanup();
       if (controller.signal.aborted) throw new HermesTimeoutError(method, path, this.timeoutMs);
-      throw new HermesNetworkError(method, path);
+      throw new HermesNetworkError(method, path, safeCauseDetails(error, apiKey));
     }
   }
 
   private async withResponse<T>(
     method: string,
     path: string,
-    auth: RuntimeAuth,
+    auth: HermesRuntimeAuth,
     accept: string,
     body: Record<string, unknown> | undefined,
     consume: (response: Response) => Promise<T>,
@@ -335,7 +347,7 @@ export class HermesHttpClient {
           method,
           path,
           pending.response.status,
-          pending.response.statusText,
+          redactSecrets(pending.response.statusText, requireApiKey(auth)).slice(0, 256),
           errorDetails(bodyText, requireApiKey(auth)),
         );
       }
@@ -345,7 +357,7 @@ export class HermesHttpClient {
       if (pending.controller.signal.aborted) {
         throw new HermesTimeoutError(method, path, this.timeoutMs);
       }
-      throw new HermesNetworkError(method, path);
+      throw new HermesNetworkError(method, path, safeCauseDetails(error, requireApiKey(auth)));
     } finally {
       pending.cleanup();
     }

@@ -78,11 +78,12 @@ export class HermesTimeoutError extends HermesError {
 }
 
 export class HermesNetworkError extends HermesError {
-  constructor(method: string, path: string) {
-    super("RUNTIME_UNAVAILABLE", `${method} ${path} failed because the Hermes runtime could not be reached`, {
-      method,
-      path,
-    });
+  constructor(method: string, path: string, details?: JsonValue) {
+    super(
+      "RUNTIME_UNAVAILABLE",
+      `${method} ${path} failed because the Hermes runtime could not be reached`,
+      details === undefined ? { method, path } : { method, path, details },
+    );
     this.name = "HermesNetworkError";
   }
 }

@@ -1,12 +1,8 @@
 import { HermesError, invalidRequest } from "./errors.js";
 import type { RuntimeRef } from "./types.js";
 
-export interface ResolvedRuntime extends RuntimeRef {
-  readonly baseUrl: string;
-}
-
 export interface LifecycleAdapter {
-  resolveRuntime(runtimeId: string): Promise<ResolvedRuntime>;
+  resolveRuntime(runtimeId: string): Promise<RuntimeRef>;
 }
 
 /**
@@ -14,23 +10,20 @@ export interface LifecycleAdapter {
  * It deliberately does not provision, mutate, or authenticate with Nous Portal.
  */
 export class ConfiguredRuntimeResolver implements LifecycleAdapter {
-  private readonly runtimes: ReadonlyMap<string, ResolvedRuntime>;
+  private readonly runtimes: ReadonlyMap<string, RuntimeRef>;
 
-  constructor(runtimes: readonly ResolvedRuntime[]) {
+  constructor(runtimes: readonly RuntimeRef[]) {
     const entries = runtimes.map((runtime) => {
       if (!runtime || typeof runtime.runtimeId !== "string" || runtime.runtimeId.trim().length === 0) {
         throw invalidRequest("runtimeId must be a non-empty string");
       }
-      if (typeof runtime.baseUrl !== "string" || runtime.baseUrl.trim().length === 0) {
-        throw invalidRequest("baseUrl must be a non-empty string");
-      }
       const runtimeId = runtime.runtimeId.trim();
-      return [runtimeId, { ...runtime, runtimeId }] as const;
+      return [runtimeId, { runtimeId }] as const;
     });
     this.runtimes = new Map(entries);
   }
 
-  async resolveRuntime(runtimeId: string): Promise<ResolvedRuntime> {
+  async resolveRuntime(runtimeId: string): Promise<RuntimeRef> {
     if (typeof runtimeId !== "string" || runtimeId.trim().length === 0) {
       throw invalidRequest("runtimeId must be a non-empty string");
     }
