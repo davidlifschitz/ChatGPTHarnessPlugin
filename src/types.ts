@@ -113,6 +113,7 @@ export interface RuntimeErrorInfo {
   readonly code: string;
   readonly message: string;
   readonly statusCode?: number;
+  readonly details?: JsonValue;
 }
 
 export interface RuntimeHealth extends RuntimeRef {

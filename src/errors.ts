@@ -143,9 +143,16 @@ export function toRuntimeErrorInfo(error: unknown): RuntimeErrorInfo {
       message: error.message,
     };
     if (error.statusCode !== undefined) {
-      return { ...info, statusCode: error.statusCode };
+      return {
+        ...info,
+        statusCode: error.statusCode,
+        ...(error.details === undefined ? {} : { details: error.details }),
+      };
     }
-    return info;
+    return {
+      ...info,
+      ...(error.details === undefined ? {} : { details: error.details }),
+    };
   }
 
   return {

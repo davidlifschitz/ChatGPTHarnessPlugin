@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import {
   HermesAdapter,
   HermesError,
-  HermesHttpClient,
-  parseControlResponse,
+  parseApprovalResponse,
   parseHealth,
   parseSse,
+  parseStopResponse,
 } from "../src/index.js";
 
 const AUTH = { apiKey: "fixture-api-key" };
@@ -55,7 +55,7 @@ test("capabilities and health normalize Hermes protocol fields", async () => {
         run_events_sse: true,
         run_stop: true,
         run_approval_response: true,
-        session_continuity: true,
+        session_continuity_header: "X-Hermes-Session-Id",
       },
     }),
     jsonResponse({ status: "ok" }),
@@ -82,13 +82,19 @@ test("capabilities and health normalize Hermes protocol fields", async () => {
   );
 });
 
-test("capability parsing accepts official endpoint metadata without broad aliases", async () => {
+test("capability parsing rejects broad aliases outside the official feature shape", async () => {
   const fixtures = queuedFetch([
     jsonResponse({
-      features: { run_submission: true, run_status: true, run_events_sse: true },
+      features: {
+        run_submission: true,
+        run_status: true,
+        run_events_sse: true,
+        run_approval: true,
+        session_continuity: true,
+        session_continuity_header: "X-Hermes-Session",
+      },
       endpoints: {
-        run_approval: { method: "POST" },
-        session_continuity_header: "X-Hermes-Session-Id",
+        run_approval: { method: "POST", path: "/v1/runs/{run_id}/approval" },
         run_cancel: { method: "POST" },
         session_chat: true,
       },
@@ -96,8 +102,8 @@ test("capability parsing accepts official endpoint metadata without broad aliase
   ]);
   const capabilities = await adapter(fixtures.fetchImpl).capabilities(AUTH);
 
-  assert.equal(capabilities.features.runApproval, true);
-  assert.equal(capabilities.features.sessionContinuity, true);
+  assert.equal(capabilities.features.runApproval, false);
+  assert.equal(capabilities.features.sessionContinuity, false);
   assert.equal(capabilities.features.runStop, false);
 });
 
@@ -107,12 +113,27 @@ test("malformed health and control responses fail with protocol errors", () => {
     assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
     return true;
   });
-  assert.throws(() => parseControlResponse({}, "approved"), (error: unknown) => {
+  assert.throws(() => parseStopResponse({}), (error: unknown) => {
     assert.ok(error instanceof HermesError);
     assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
     return true;
   });
-  assert.throws(() => parseControlResponse({ status: "mystery" }, "approved"), (error: unknown) => {
+  assert.throws(() => parseStopResponse({ run_id: "run-1", status: "mystery" }), (error: unknown) => {
+    assert.ok(error instanceof HermesError);
+    assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
+    return true;
+  });
+  assert.throws(() => parseApprovalResponse({ run_id: "run-1", choice: "bogus", resolved: 1 }), (error: unknown) => {
+    assert.ok(error instanceof HermesError);
+    assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
+    return true;
+  });
+  assert.throws(() => parseHealth({ status: "ok", ok: "false" }), (error: unknown) => {
+    assert.ok(error instanceof HermesError);
+    assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
+    return true;
+  });
+  assert.throws(() => parseHealth({ status: "ok", ok: false }), (error: unknown) => {
     assert.ok(error instanceof HermesError);
     assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
     return true;
@@ -210,6 +231,28 @@ test("SSE parsing rejects an incomplete final frame", async () => {
   );
 });
 
+test("SSE parsing rejects conflicting envelope and embedded event names", async () => {
+  const encoder = new TextEncoder();
+  async function* chunks(): AsyncGenerator<Uint8Array> {
+    yield encoder.encode(
+      "event: run.completed\ndata: {\"event\":\"run.failed\",\"run_id\":\"run-1\"}\n\n",
+    );
+  }
+
+  await assert.rejects(
+    (async () => {
+      for await (const _event of parseSse(chunks())) {
+        // Exhaust the parser so the conflicting-frame check runs.
+      }
+    })(),
+    (error: unknown) => {
+      assert.ok(error instanceof HermesError);
+      assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
+      return true;
+    },
+  );
+});
+
 test("adapter streamEvents maps Hermes SSE frames to the runtime handle", async () => {
   const sse = [
     "event: gateway.ready\n",
@@ -217,7 +260,7 @@ test("adapter streamEvents maps Hermes SSE frames to the runtime handle", async 
     "id: 2\n",
     "event: message.complete\n",
     "data: {\"output\":\"Done\"}\n\n",
-    "data: {\"event\":\"run.completed\",\"status\":\"completed\"}\n\n",
+    "data: {\"event\":\"run.completed\",\"run_id\":\"run-1\"}\n\n",
   ].join("");
   const fixtures = queuedFetch([
     jsonResponse({ features: { run_events_sse: true } }),
@@ -248,8 +291,8 @@ test("adapter streamEvents maps Hermes SSE frames to the runtime handle", async 
       runtimeId: "hermes-fixture",
       runId: "run-1",
       event: "run.completed",
-      data: { event: "run.completed", status: "completed" },
-      rawData: '{"event":"run.completed","status":"completed"}',
+      data: { event: "run.completed", run_id: "run-1" },
+      rawData: '{"event":"run.completed","run_id":"run-1"}',
     },
   ]);
 });
@@ -343,9 +386,9 @@ test("request timeout is bounded and normalized", async () => {
 test("stop and approval call only advertised controls; unsupported operations are stable", async () => {
   const fixtures = queuedFetch([
     jsonResponse({ features: { run_stop: true, run_approval_response: true } }),
-    jsonResponse({ status: "stopping" }),
+    jsonResponse({ run_id: "run-1", status: "stopping" }),
     jsonResponse({ features: { run_stop: true, run_approval_response: true } }),
-    jsonResponse({ status: "approved" }),
+    jsonResponse({ run_id: "run-1", choice: "once", resolved: 1 }),
   ]);
   const runtime = adapter(fixtures.fetchImpl);
   const handle = { runtimeId: "hermes-fixture", runId: "run-1" } as const;

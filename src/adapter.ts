@@ -163,6 +163,11 @@ export class HermesAdapter implements RuntimeAdapter {
       throw new UnsupportedOperationError("cancelRun", "run_stop");
     }
     const response = await this.client.stopRun(handle.runId, this.hermesAuth(auth));
+    if (response.runId !== handle.runId) {
+      throw new HermesProtocolError(
+        `POST /v1/runs/{id}/stop returned run_id ${response.runId} for requested run ${handle.runId}`,
+      );
+    }
     return {
       handle,
       status: response.status,
@@ -181,6 +186,11 @@ export class HermesAdapter implements RuntimeAdapter {
       throw new UnsupportedOperationError("approveRun", "run_approval_response");
     }
     const response = await this.client.approveRun(handle.runId, request, this.hermesAuth(auth));
+    if (response.runId !== handle.runId) {
+      throw new HermesProtocolError(
+        `POST /v1/runs/{id}/approval returned run_id ${response.runId} for requested run ${handle.runId}`,
+      );
+    }
     return {
       handle,
       status: response.status,

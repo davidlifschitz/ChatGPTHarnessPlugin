@@ -10,11 +10,13 @@ import {
 } from "./errors.js";
 import {
   parseCapabilities,
-  parseControlResponse,
+  parseApprovalResponse,
   parseHealth,
   parseRun,
   parseSse,
+  parseStopResponse,
   parseStartRun,
+  isApprovalChoice,
   isTerminalEvent,
   type ParsedCapabilities,
   type ParsedControlResponse,
@@ -184,7 +186,7 @@ export class HermesHttpClient {
   async stopRun(runId: string, auth: HermesRuntimeAuth): Promise<ParsedControlResponse> {
     validateRunId(runId);
     const value = await this.requestJson("POST", `${this.runPath(runId)}/stop`, auth, {});
-    return parseControlResponse(value, "stopping");
+    return parseStopResponse(value);
   }
 
   async approveRun(
@@ -193,8 +195,14 @@ export class HermesHttpClient {
     auth: HermesRuntimeAuth,
   ): Promise<ParsedControlResponse> {
     validateRunId(runId);
+    if (!isApprovalChoice(request.choice)) {
+      throw invalidRequest("approval choice must be once, session, always, or deny");
+    }
+    if (request.all !== undefined && typeof request.all !== "boolean") {
+      throw invalidRequest("approval all must be boolean when present");
+    }
     const value = await this.requestJson("POST", `${this.runPath(runId)}/approval`, auth, { ...request });
-    return parseControlResponse(value, "approved");
+    return parseApprovalResponse(value);
   }
 
   async *streamRunEvents(runId: string, auth: HermesRuntimeAuth): AsyncGenerator<ParsedSseEvent, void, undefined> {
@@ -241,7 +249,15 @@ export class HermesHttpClient {
 
       let terminalEventSeen = false;
       for await (const event of parseSse(chunks())) {
-        if (isTerminalEvent(event)) terminalEventSeen = true;
+        if (
+          isTerminalEvent(event) &&
+          typeof event.data === "object" &&
+          event.data !== null &&
+          !Array.isArray(event.data) &&
+          event.data.run_id === runId
+        ) {
+          terminalEventSeen = true;
+        }
         yield event;
       }
       if (!terminalEventSeen) {

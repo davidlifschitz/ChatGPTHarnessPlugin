@@ -39,6 +39,7 @@ export interface ParsedHealth {
 }
 
 export interface ParsedControlResponse {
+  readonly runId: string;
   readonly status: string;
   readonly raw: JsonObject;
 }
@@ -191,28 +192,6 @@ export function parseRun(value: unknown): ParsedRun {
   };
 }
 
-function booleanFeature(raw: JsonObject, features: JsonObject, name: string): boolean {
-  return raw[name] === true || features[name] === true;
-}
-
-function endpointObject(endpoints: JsonObject, name: string): boolean {
-  const value = endpoints[name];
-  return (
-    value === true ||
-    (typeof value === "string" && value.trim().length > 0) ||
-    (value !== null && typeof value === "object" && !Array.isArray(value))
-  );
-}
-
-function sessionContinuityFeature(raw: JsonObject, features: JsonObject, endpoints: JsonObject): boolean {
-  if (booleanFeature(raw, features, "session_continuity")) return true;
-  for (const source of [raw, features, endpoints]) {
-    const value = source.session_continuity_header;
-    if (value === true || (typeof value === "string" && value.trim().length > 0)) return true;
-  }
-  return false;
-}
-
 export function parseCapabilities(value: unknown): ParsedCapabilities {
   const raw = protocolObject(value, "GET /v1/capabilities response");
   const featureValue = raw.features;
@@ -220,18 +199,13 @@ export function parseCapabilities(value: unknown): ParsedCapabilities {
     featureValue === undefined || featureValue === null
       ? {}
       : protocolObject(featureValue, "GET /v1/capabilities response.features");
-  const endpointValue = raw.endpoints;
-  const endpoints =
-    endpointValue === undefined || endpointValue === null
-      ? {}
-      : protocolObject(endpointValue, "GET /v1/capabilities response.endpoints");
   const parsedFeatures: CapabilityFlags = {
-    runSubmission: booleanFeature(raw, features, "run_submission"),
-    runStatus: booleanFeature(raw, features, "run_status"),
-    runEventsSse: booleanFeature(raw, features, "run_events_sse"),
-    runStop: booleanFeature(raw, features, "run_stop"),
-    runApproval: booleanFeature(raw, features, "run_approval_response") || endpointObject(endpoints, "run_approval"),
-    sessionContinuity: sessionContinuityFeature(raw, features, endpoints),
+    runSubmission: features.run_submission === true,
+    runStatus: features.run_status === true,
+    runEventsSse: features.run_events_sse === true,
+    runStop: features.run_stop === true,
+    runApproval: features.run_approval_response === true,
+    sessionContinuity: features.session_continuity_header === "X-Hermes-Session-Id",
   };
   const platform = optionalString(raw, "platform", "GET /v1/capabilities response");
   const model = optionalString(raw, "model", "GET /v1/capabilities response");
@@ -250,6 +224,15 @@ export function parseHealth(value: unknown): ParsedHealth {
     throw new HermesProtocolError("GET /health response.status must not be empty");
   }
   const rawStatus = statusValue?.trim().toLowerCase();
+  for (const key of ["ok", "healthy"] as const) {
+    const auxiliary = raw[key];
+    if (auxiliary !== undefined && typeof auxiliary !== "boolean") {
+      throw new HermesProtocolError(`GET /health response.${key} must be boolean when present`);
+    }
+  }
+  if (typeof raw.ok === "boolean" && typeof raw.healthy === "boolean" && raw.ok !== raw.healthy) {
+    throw new HermesProtocolError("GET /health response.ok and healthy disagree");
+  }
   const ok = raw.ok ?? raw.healthy;
   if (typeof ok !== "boolean" && rawStatus === undefined) {
     throw new HermesProtocolError("GET /health response must include status, ok, or healthy");
@@ -273,47 +256,56 @@ export function parseHealth(value: unknown): ParsedHealth {
     available = ok as boolean;
     status = available ? "available" : "unavailable";
   }
+  if (typeof ok === "boolean" && rawStatus !== undefined && available !== ok) {
+    throw new HermesProtocolError("GET /health response status and availability disagree");
+  }
   return { available, status, raw };
 }
 
-const CONTROL_STATUSES = new Set([
+const STOP_STATUSES = new Set([
   "stopping",
   "stopped",
   "cancelled",
-  "approved",
-  "denied",
-  "pending",
-  "resolved",
   "failed",
 ]);
+const APPROVAL_CHOICES = new Set(["once", "session", "always", "deny"]);
 
-export function parseControlResponse(value: unknown, fallbackStatus: string): ParsedControlResponse {
-  if (value === null || value === undefined) {
-    throw new HermesProtocolError("Hermes run control response must be a JSON object");
+export function isApprovalChoice(value: unknown): value is "once" | "session" | "always" | "deny" {
+  return typeof value === "string" && APPROVAL_CHOICES.has(value);
+}
+
+function requiredControlRunId(raw: JsonObject, context: string): string {
+  const value = optionalIdentifier(raw, "run_id", context);
+  if (value === undefined) throw new HermesProtocolError(`${context}.run_id is required`);
+  return value;
+}
+
+export function parseStopResponse(value: unknown): ParsedControlResponse {
+  const context = "POST /v1/runs/{id}/stop response";
+  const raw = protocolObject(value, context);
+  const runId = requiredControlRunId(raw, context);
+  const responseStatus = optionalString(raw, "status", context);
+  if (responseStatus === undefined || responseStatus.trim().length === 0) {
+    throw new HermesProtocolError(`${context}.status is required`);
   }
-  const raw = protocolObject(value, "Hermes run control response");
-  const responseStatus = optionalString(raw, "status", "Hermes run control response");
-  if (responseStatus !== undefined) {
-    if (responseStatus.trim().length === 0) {
-      throw new HermesProtocolError("Hermes run control response.status must not be empty");
-    }
-    const normalizedStatus = responseStatus.trim().toLowerCase();
-    if (!CONTROL_STATUSES.has(normalizedStatus)) {
-      throw new HermesProtocolError(`Hermes run control response.status ${normalizedStatus} is not recognized`);
-    }
-    return { status: normalizedStatus, raw };
+  const status = responseStatus.trim().toLowerCase();
+  if (!STOP_STATUSES.has(status)) {
+    throw new HermesProtocolError(`${context}.status ${status} is not recognized`);
   }
-  if (
-    (typeof raw.choice === "string" && raw.choice.trim().length > 0) ||
-    typeof raw.resolved === "boolean"
-  ) {
-    const normalizedFallback = fallbackStatus.trim().toLowerCase();
-    if (!CONTROL_STATUSES.has(normalizedFallback)) {
-      throw new HermesProtocolError(`Hermes fallback control status ${normalizedFallback} is not recognized`);
-    }
-    return { status: normalizedFallback, raw };
+  return { runId, status, raw };
+}
+
+export function parseApprovalResponse(value: unknown): ParsedControlResponse {
+  const context = "POST /v1/runs/{id}/approval response";
+  const raw = protocolObject(value, context);
+  const runId = requiredControlRunId(raw, context);
+  if (!isApprovalChoice(raw.choice)) {
+    throw new HermesProtocolError(`${context}.choice is invalid`);
   }
-  throw new HermesProtocolError("Hermes run control response.status is required");
+  if (typeof raw.resolved !== "number" || !Number.isInteger(raw.resolved) || raw.resolved <= 0) {
+    throw new HermesProtocolError(`${context}.resolved must be a positive integer`);
+  }
+  return { runId, status: "approved", raw };
 }
 
 function parseSsePayload(rawData: string): JsonValue | string {
@@ -344,11 +336,18 @@ function parseSseBlock(block: string): ParsedSseEvent | undefined {
   if (dataLines.length === 0) return undefined;
   const rawData = dataLines.join("\n");
   const parsedData = parseSsePayload(rawData);
-  const embeddedEvent =
-    typeof parsedData === "object" && parsedData !== null && !Array.isArray(parsedData) &&
-    typeof parsedData.event === "string"
-      ? parsedData.event
-      : undefined;
+  let embeddedEvent: string | undefined;
+  if (typeof parsedData === "object" && parsedData !== null && !Array.isArray(parsedData)) {
+    if (parsedData.event !== undefined) {
+      if (typeof parsedData.event !== "string" || parsedData.event.length === 0) {
+        throw new HermesProtocolError("Hermes SSE data.event must be a non-empty string when present");
+      }
+      embeddedEvent = parsedData.event;
+    }
+  }
+  if (event !== undefined && embeddedEvent !== undefined && event !== embeddedEvent) {
+    throw new HermesProtocolError("Hermes SSE event envelope conflicts with data.event");
+  }
   return {
     ...(event === undefined || event.length === 0
       ? embeddedEvent === undefined
@@ -405,6 +404,14 @@ export function isTerminalEvent(event: ParsedSseEvent): boolean {
   if (expected === undefined || typeof event.data !== "object" || event.data === null || Array.isArray(event.data)) {
     return false;
   }
+  const eventRunId = event.data.run_id;
+  if (
+    typeof eventRunId !== "string" ||
+    eventRunId.trim().length === 0 ||
+    /[\u0000-\u001f\u007f]/.test(eventRunId)
+  ) {
+    return false;
+  }
   const eventStatus = event.data.status;
-  return typeof eventStatus === "string" && normalizeStatus(eventStatus) === expected;
+  return eventStatus === undefined || (typeof eventStatus === "string" && normalizeStatus(eventStatus) === expected);
 }
