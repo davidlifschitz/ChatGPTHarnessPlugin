@@ -1,0 +1,81 @@
+name: Harness roadmap work
+description: Track work that advances the ChatGPTHarnessPlugin roadmap.
+title: "[Harness] "
+body:
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Roadmap milestone
+      options:
+        - M0 — Product Architecture and Repository Foundation
+        - M1 — Hermes Runtime Adapter
+        - M2 — Private ChatGPT Control
+        - M3 — Production Identity and Isolation
+        - M4 — Private/Public Convergence
+        - M5 — Release Candidate
+        - M6 — Publish First Harness Plugin
+        - M7 — Prove Second Harness Adapter
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      multiple: true
+      options:
+        - Shared control plane
+        - Private/canary
+        - Published/stable
+        - Hermes adapter
+        - Other harness adapter
+        - ChatGPT integration
+        - Infrastructure
+    validations:
+      required: true
+  - type: textarea
+    id: capability
+    attributes:
+      label: Capability advanced
+      description: What user or platform capability does this move forward?
+    validations:
+      required: true
+  - type: textarea
+    id: end_state
+    attributes:
+      label: End-state compatibility
+      description: Explain how this fits the shared control plane and avoids client- or harness-specific rewrite debt.
+    validations:
+      required: true
+  - type: textarea
+    id: debt
+    attributes:
+      label: Temporary infrastructure or debt
+      description: List any shortcuts and their replacement/removal path.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable behavior required to call this work complete.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: Tests, commands, or end-to-end flows that prove the acceptance criteria.
+    validations:
+      required: true
+  - type: checkboxes
+    id: guardrails
+    attributes:
+      label: Guardrails
+      options:
+        - label: I checked PROJECT.md, STATE.md, ROADMAP.md, and ARCHITECTURE.md.
+          required: true
+        - label: This work does not put credentials or tokens into source, prompts, logs, issues, or model-visible results.
+          required: true
+        - label: Unsupported external/runtime capabilities will be reported explicitly rather than fabricated.
+          required: true
