@@ -211,6 +211,20 @@ test("SSE parsing handles chunk boundaries, event names, ids, and JSON data", as
   ]);
 });
 
+test("SSE parsing preserves CRLF separators split across chunks", async () => {
+  const encoder = new TextEncoder();
+  async function* chunks(): AsyncGenerator<Uint8Array> {
+    yield encoder.encode("event: message.delta\r");
+    yield encoder.encode("\ndata: {\"delta\":\"ok\"}\r");
+    yield encoder.encode("\n\r");
+    yield encoder.encode("\n");
+  }
+
+  const events = [];
+  for await (const event of parseSse(chunks())) events.push(event);
+  assert.deepEqual(events, [{ event: "message.delta", data: { delta: "ok" }, rawData: '{"delta":"ok"}' }]);
+});
+
 test("SSE parsing rejects an incomplete final frame", async () => {
   const encoder = new TextEncoder();
   async function* chunks(): AsyncGenerator<Uint8Array> {
@@ -250,6 +264,37 @@ test("SSE parsing rejects conflicting envelope and embedded event names", async 
       assert.equal(error.code, "RUNTIME_PROTOCOL_ERROR");
       return true;
     },
+  );
+});
+
+test("SSE parsing rejects oversized event frames", async () => {
+  const encoder = new TextEncoder();
+  async function* chunks(): AsyncGenerator<Uint8Array> {
+    yield encoder.encode(`data: ${"x".repeat(262_145)}\n\n`);
+  }
+
+  await assert.rejects(
+    (async () => {
+      for await (const _event of parseSse(chunks())) {
+        // Exhaust the parser so the frame bound runs.
+      }
+    })(),
+    (error: unknown) => error instanceof HermesError && error.message.includes("too large"),
+  );
+});
+
+test("Hermes HTTP client rejects oversized upstream JSON bodies", async () => {
+  const fixtures = queuedFetch([
+    new Response("x".repeat(1_048_577), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }),
+  ]);
+  const runtime = adapter(fixtures.fetchImpl);
+
+  await assert.rejects(
+    runtime.capabilities(AUTH),
+    (error: unknown) => error instanceof HermesError && error.message.includes("response body that is too large"),
   );
 });
 
@@ -325,7 +370,7 @@ test("adapter streamEvents rejects a clean SSE EOF without a terminal run event"
 test("HTTP errors are normalized without exposing the runtime API key", async () => {
   const fixtures = queuedFetch([
     jsonResponse({ features: { run_submission: true } }),
-    new Response(JSON.stringify({ error: "bad key fixture-api-key" }), {
+    new Response(JSON.stringify({ error: "bad key fixture-api-key api_key=other-secret" }), {
       status: 401,
       statusText: "Unauthorized",
       headers: { "content-type": "application/json" },
@@ -341,6 +386,7 @@ test("HTTP errors are normalized without exposing the runtime API key", async ()
       assert.equal(error.statusCode, 401);
       assert.equal(error.message.includes("fixture-api-key"), false);
       assert.equal(JSON.stringify(error).includes("fixture-api-key"), false);
+      assert.equal(JSON.stringify(error).includes("other-secret"), false);
       return true;
     },
   );

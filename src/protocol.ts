@@ -7,6 +7,9 @@ import type {
   TokenUsage,
 } from "./types.js";
 
+const MAX_SSE_BUFFER_CHARS = 1_048_576;
+const MAX_SSE_BLOCK_CHARS = 262_144;
+
 export interface ParsedStartRun {
   readonly runId: string;
   readonly status: RunStatus;
@@ -365,12 +368,21 @@ export async function* parseSse(
 ): AsyncGenerator<ParsedSseEvent, void, undefined> {
   const decoder = new TextDecoder();
   let buffer = "";
+  let trailingCarriageReturn = false;
+
+  const appendDecoded = (decoded: string): void => {
+    const combined = `${trailingCarriageReturn ? "\r" : ""}${decoded}`;
+    trailingCarriageReturn = combined.endsWith("\r");
+    const complete = trailingCarriageReturn ? combined.slice(0, -1) : combined;
+    buffer += complete.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  };
 
   const dispatch = function* (final: boolean): Generator<ParsedSseEvent> {
     while (true) {
       const separator = buffer.indexOf("\n\n");
       if (separator === -1) break;
       const block = buffer.slice(0, separator);
+      if (block.length > MAX_SSE_BLOCK_CHARS) throw new HermesProtocolError("Hermes SSE event is too large");
       buffer = buffer.slice(separator + 2);
       const parsed = parseSseBlock(block);
       if (parsed !== undefined) yield parsed;
@@ -381,10 +393,15 @@ export async function* parseSse(
   };
 
   for await (const chunk of chunks) {
-    buffer += decoder.decode(chunk, { stream: true }).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    appendDecoded(decoder.decode(chunk, { stream: true }));
+    if (buffer.length > MAX_SSE_BUFFER_CHARS) throw new HermesProtocolError("Hermes SSE buffer is too large");
     yield* dispatch(false);
   }
-  buffer += decoder.decode().replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  appendDecoded(decoder.decode());
+  if (trailingCarriageReturn) {
+    buffer += "\n";
+    trailingCarriageReturn = false;
+  }
   yield* dispatch(true);
 }
 

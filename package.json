@@ -11,8 +11,10 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "control-plane": "tsx src/control-plane-main.ts",
     "test": "tsx --test test/*.test.ts",
     "test:e2e": "tsx --test test/hermes-e2e.test.ts",
+    "test:private-e2e": "tsx --test test/private-control-plane-e2e.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
   },
   "devDependencies": {

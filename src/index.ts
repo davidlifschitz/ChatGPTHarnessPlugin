@@ -1,5 +1,6 @@
 export * from "./adapter.js";
 export * from "./client.js";
+export * from "./control-plane.js";
 export * from "./errors.js";
 export * from "./lifecycle.js";
 export * from "./hermes-types.js";

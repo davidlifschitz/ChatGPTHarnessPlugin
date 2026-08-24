@@ -12,6 +12,8 @@ The current official Hermes docs also document the Nous Portal MCP endpoint at `
 
 This is verified as an official lifecycle interface, but it is not yet wired into the product adapter. No user-specific org/agent identifier is hard-coded. `hermes setup --portal` / `hermes portal` remain interactive local setup flows, and dashboard OAuth is a separate concern.
 
+The private product MCP endpoint does not use Nous Portal lifecycle MCP. It calls only the already configured Hermes runtime through the Hermes adapter. This keeps task/session execution separate from Cloud agent discovery and provisioning; the latter remains unverified here and still requires an official browser authorization boundary when implemented.
+
 ## M1 behavior
 
 - Accept an already authenticated, operator-configured runtime endpoint and API key through runtime configuration.

@@ -34,6 +34,7 @@ import type { HermesHttpClientOptions, HermesRuntimeAuth } from "./hermes-types.
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_TIMEOUT_MS = 300_000;
+const MAX_UPSTREAM_BODY_BYTES = 1_048_576;
 
 interface PendingResponse {
   readonly response: Response;
@@ -78,6 +79,10 @@ function redactSecrets(value: string, apiKey: string): string {
     .replace(
       /(\"?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|cookie|authorization|secret)\"?\s*[:=]\s*\")([^\"\n]*)/gi,
       "$1[REDACTED]",
+    )
+    .replace(
+      /\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|cookie|authorization|secret)\b\s*[:=]\s*[^\s"',}&]+/gi,
+      (match) => match.replace(/([^:=\s]+\s*[:=]\s*)[^\s"',}&]+$/i, "$1[REDACTED]"),
     );
 }
 
@@ -124,6 +129,9 @@ export class HermesHttpClient {
     }
     if (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:") {
       throw configurationError("Hermes baseUrl must use HTTP or HTTPS");
+    }
+    if (baseUrl.protocol === "http:" && !isLoopbackHostname(baseUrl.hostname)) {
+      throw configurationError("Hermes HTTP baseUrl must be loopback; use HTTPS for remote runtimes");
     }
     if (baseUrl.username || baseUrl.password) {
       throw configurationError("Hermes baseUrl must not contain URL credentials");
@@ -212,7 +220,7 @@ export class HermesHttpClient {
     const pending = await this.openRequest(method, path, auth, "text/event-stream");
     try {
       if (!pending.response.ok) {
-        const body = await pending.response.text();
+        const body = await readBoundedResponseText(pending.response, path);
         throw new HermesHttpError(
           method,
           path,
@@ -303,7 +311,7 @@ export class HermesHttpClient {
     body?: Record<string, unknown>,
   ): Promise<unknown> {
     return this.withResponse(method, path, auth, "application/json", body, async (response) => {
-      return parseJsonBody(await response.text(), path, requireApiKey(auth));
+      return parseJsonBody(await readBoundedResponseText(response, path), path, requireApiKey(auth));
     });
   }
 
@@ -358,7 +366,7 @@ export class HermesHttpClient {
     const pending = await this.openRequest(method, path, auth, accept, body);
     try {
       if (!pending.response.ok) {
-        const bodyText = await pending.response.text();
+        const bodyText = await readBoundedResponseText(pending.response, path);
         throw new HermesHttpError(
           method,
           path,
@@ -378,4 +386,45 @@ export class HermesHttpClient {
       pending.cleanup();
     }
   }
+}
+
+async function readBoundedResponseText(response: Response, path: string): Promise<string> {
+  const declaredLength = response.headers.get("content-length");
+  if (declaredLength !== null) {
+    const length = Number(declaredLength);
+    if (Number.isSafeInteger(length) && length > MAX_UPSTREAM_BODY_BYTES) {
+      throw new HermesProtocolError(`${path} returned a response body that is too large`);
+    }
+  }
+  if (response.body === null) {
+    const text = await response.text();
+    if (Buffer.byteLength(text, "utf8") > MAX_UPSTREAM_BODY_BYTES) {
+      throw new HermesProtocolError(`${path} returned a response body that is too large`);
+    }
+    return text;
+  }
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      const chunk = Buffer.from(next.value);
+      total += chunk.length;
+      if (total > MAX_UPSTREAM_BODY_BYTES) {
+        await reader.cancel();
+        throw new HermesProtocolError(`${path} returned a response body that is too large`);
+      }
+      chunks.push(chunk);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  return normalized === "::1" || /^127(?:\.\d{1,3}){3}$/.test(normalized);
 }

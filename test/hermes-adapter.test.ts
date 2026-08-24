@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 
 import { HermesAdapter } from "../src/index.js";
 
+test("rejects non-loopback HTTP Hermes endpoints", () => {
+  assert.throws(
+    () => new HermesAdapter({ baseUrl: "http://hermes.example/v1", runtimeId: "hermes-remote" }),
+    /must be loopback.*HTTPS/,
+  );
+});
+
 test("startRun preserves the explicit runtime identity and sends runtime auth per request", async () => {
   let request: Request | undefined;
   const fetchImpl: typeof fetch = async (input, init) => {

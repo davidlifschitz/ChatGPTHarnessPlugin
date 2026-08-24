@@ -36,6 +36,12 @@ Hermes also documents ACP and TUI gateway JSON-RPC/WebSocket. They expose richer
 - [CLI commands](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/reference/cli-commands.md)
 - [API server source](https://github.com/NousResearch/hermes-agent/blob/main/gateway/platforms/api_server.py)
 
+## Product-side private boundary
+
+The product-side private MCP control plane is a separate HTTP boundary over this adapter. It does not expose Hermes endpoints directly to the model client and does not forward Hermes raw payloads. The boundary injects the Hermes `API_SERVER_KEY` server-side, requires a private bearer token and exact Origin allowlist, and returns only normalized runtime/session/run identifiers, state, result, and safe error codes.
+
+The first verified private path is local: MCP Streamable HTTP `/mcp` → control plane → configured Hermes API server. Hosted ChatGPT connectivity is not claimed until an authorized developer-mode private tunnel or private HTTPS proxy has been exercised.
+
 ## Capability evidence
 
 Verified: local API-server connection, capability discovery, run submission, run polling, terminal result retrieval, stable runtime/run/session IDs, and the cooperative stop/approval request shapes behind advertised feature flags.
