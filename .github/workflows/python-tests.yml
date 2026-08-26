@@ -1,0 +1,32 @@
+name: Python tests
+
+on:
+  push:
+    branches:
+      - main
+      - product-reset/**
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run unit tests
+        run: python -m unittest -v tests.test_hermes_probe
+
+      - name: Compile probe
+        run: python -m py_compile tools/hermes_probe.py tests/test_hermes_probe.py
+
+      - name: Verify CLI help
+        run: python tools/hermes_probe.py --help
