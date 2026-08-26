@@ -1,12 +1,12 @@
 # Harness Consumer Layer — Architecture
 
-This document contains the long-lived architecture constraints for the consumer product. For verified reality see `STATE.md`; for sequencing see `ROADMAP.md`.
+This document contains long-lived architecture constraints. For verified reality see `STATE.md`; for sequencing see `ROADMAP.md`.
 
 ## Objective
 
-Provide one simple consumer experience over capable general-purpose agent harnesses without duplicating the runtimes those projects already maintain.
+Provide one simple consumer experience over capable general-purpose agent harnesses without duplicating those harness runtimes or exposing infrastructure administration to users.
 
-Hermes is the first MVP harness. OpenClaw is the planned second harness. The product boundary is therefore harness-neutral, while implementation remains upstream-first and harness-specific behind a thin connector seam.
+Hermes is the MVP harness. OpenClaw is the planned second harness.
 
 ## System shape
 
@@ -14,13 +14,12 @@ Hermes is the first MVP harness. OpenClaw is the planned second harness. The pro
 mobile / desktop browser
           |
           v
-Consumer Web Surface
+Consumer Web Surface (Vercel today)
           |
           v
 Minimal Product Boundary
-  - authentication/onboarding, if needed
-  - user -> harness/agent mapping
-  - harness selection
+  - identity/onboarding when needed
+  - user -> harness/runtime mapping
   - secret mediation
   - product entitlements
           |
@@ -29,28 +28,47 @@ Thin Harness Connector Seam
        /        \
       v          v
  Hermes          OpenClaw
- MVP              next
-  |
-  +--> Hermes API Server
-  |    chat / runs / sessions / capabilities
-  |
-  +--> Nous Portal / Hermes Cloud
-       hosting / lifecycle where applicable
+  MVP             next
+      \           /
+       v         v
+Operator-controlled harness runtime environment
+  - VM/container host
+  - persistent harness-native data
+  - health/restart policy
+  - restricted machine ingress
+          |
+          v
+Upstream model/tool/provider services
+( Nous Portal or others as configured )
 ```
 
-Future harnesses attach at the connector seam only when they provide concrete product value.
+## Upstream-first does not mean hosting-provider-first
 
-## Upstream-first boundary
+The product reuses upstream harness software, APIs, runtime semantics, sessions, memory, tools, skills, and provider integration.
 
-The default architecture is to call the selected harness's supported interfaces directly or through the smallest safe server-side mediation layer.
+It does **not** require a harness vendor to own the VM/network boundary.
 
-The product must not create parallel implementations of upstream behavior merely to normalize everything into one artificial domain model.
+When a managed hosting product does not expose the machine API contract required by our consumer product, we run the upstream harness on infrastructure we control instead of rebuilding the harness or emulating a human dashboard session.
 
-Before adding a service, table, queue, state machine, adapter behavior, or API, document the required user behavior and the upstream gap preventing the chosen harness from satisfying it.
+A managed hosting option may be used when it exposes a supported machine API, authentication, lifecycle, persistence, and isolation contract.
+
+## Runtime infrastructure boundary
+
+The product operator may own the minimum infrastructure needed to run the harness reliably:
+
+- VM/container deployment;
+- persistent volumes;
+- secret injection;
+- network ingress/private connectivity;
+- process health/restart behavior;
+- backups/recovery where required;
+- later provisioning/capacity automation after product evidence justifies it.
+
+This infrastructure is an implementation detail hidden from consumers.
+
+Operating infrastructure must not become an excuse to recreate harness semantics. Hermes/OpenClaw remain authoritative for agent execution and native state.
 
 ## Harness connector seam
-
-The connector seam exists to keep consumer/product code from depending on one harness's transport details. It should stay deliberately small.
 
 A connector may own:
 
@@ -58,8 +76,8 @@ A connector may own:
 - endpoint and lifecycle discovery;
 - capability discovery and translation;
 - request/response/event/stream transport;
-- stable upstream identifier references where required;
-- harness-specific diagnostics and error translation.
+- stable upstream references where required;
+- harness-specific diagnostics/error translation.
 
 A connector does **not** own:
 
@@ -71,103 +89,58 @@ A connector does **not** own:
 - a cross-harness scheduler;
 - a generic model gateway.
 
-The connector contract should evolve from evidence. Hermes defines the first implementation; OpenClaw is the planned second implementation that will validate or revise the seam.
-
-## Capability model
-
-Harness capabilities are not assumed to be identical.
-
-The consumer surface can expose common product intents where they genuinely exist, but must remain capability-aware. If one harness lacks a feature, the product should hide, disable, or explain that feature rather than simulate it.
-
-Do not create product-owned durable state solely to make two harnesses look symmetric.
+The connector contract evolves from evidence. Hermes defines the first implementation; OpenClaw validates/revises it.
 
 ## Hermes connector — MVP
 
-Hermes is the first execution system because current Nous/Hermes infrastructure gives the project the shortest path to a hosted MVP.
+Hermes is first because its API server exposes the primitives required for the consumer thesis: OpenAI-compatible chat, runs, sessions, capabilities/model discovery, skills/toolsets, and stable memory/session scoping.
 
-Supported Hermes surfaces currently include:
+M1 runs an official Hermes runtime on an operator-controlled persistent host. The API server is enabled with server-side bearer authentication and reached only through restricted machine ingress. The browser never receives the Hermes key.
 
-- OpenAI-compatible chat completions;
-- Responses API;
-- asynchronous runs and lifecycle events;
-- approvals, steering, and stop controls;
-- session CRUD/history/fork/chat/stream operations;
-- machine-readable capabilities and model discovery;
-- skill/toolset discovery;
-- stable session-key scoping for multi-user memory.
+Nous Portal may be used by Hermes for model/tool authentication. Nous-managed Hermes Cloud is not required for execution hosting.
 
-The Hermes connector should preserve those semantics rather than inventing a second task/session model.
-
-Hermes/Nous references:
+Hermes references:
 
 - https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
+- https://hermes-agent.nousresearch.com/docs/user-guide/docker/
 - https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration
-- https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
-
-## OpenClaw connector — planned second harness
-
-OpenClaw is the planned second harness after the Hermes production web MVP is working.
-
-No OpenClaw runtime capability is treated as verified in this repository until it is researched and tested against current upstream behavior. The OpenClaw implementation should not be forced into Hermes endpoint names or semantics.
-
-Its purpose is twofold:
-
-1. provide a second useful harness to users;
-2. reveal which parts of the connector seam are truly shared and which should remain harness-specific.
-
-If OpenClaw exposes materially different primitives, revise the connector boundary rather than adding a large normalization layer.
+- https://hermes-agent.nousresearch.com/docs/integrations/nous-portal
 
 ## Consumer frontend boundary
 
-The consumer frontend should be harness-neutral at the product level: the user chooses or receives an agent and interacts with it through a simple experience.
+The frontend stays harness-neutral at the product level. Users interact with an agent, not a container, API server, provider token, tunnel, or cloud host.
 
-For M1, begin with the least custom frontend capable of proving the real Hermes experience. An off-the-shelf compatible frontend is a replaceable test/client surface, not the product architecture.
-
-The consumer surface must hide infrastructure/admin concepts such as raw API keys, provider setup, MCP configuration, environment variables, and system operations unless a future advanced mode intentionally exposes them.
+For M1, the existing minimal Vercel surface is a validation client. It is replaceable.
 
 ## Identity and isolation
 
 Shared product identity may map to different upstream isolation mechanisms per harness.
 
-For Hermes, possible supported boundaries include dedicated Hermes Cloud instances, Hermes profiles, and stable `X-Hermes-Session-Key` values. The production choice must be verified against real cross-user isolation requirements.
-
-OpenClaw isolation must be determined from its own supported behavior when that milestone begins; do not assume it matches Hermes.
+For Hermes, candidate boundaries include profiles, dedicated runtimes, and stable `X-Hermes-Session-Key` values. The production choice must be verified by cross-user testing rather than assumed.
 
 Client-provided identifiers are never sufficient authorization by themselves.
 
 ## Secrets
 
-Secrets remain server-side.
+Secrets remain server-side. Never ship harness/provider credentials to browser JavaScript, commit them, place them in prompts, return them from APIs, or log raw bearer/refresh tokens.
 
-Never:
-
-- ship harness API keys to browser JavaScript;
-- commit provider/Portal credentials;
-- place credentials in model prompts;
-- return credentials in API/tool results;
-- log raw bearer/refresh tokens.
-
-If a frontend requires a harness secret in browser-accessible configuration, insert a trusted server-side mediation layer.
+Publicly reachable harness ports must not be unauthenticated. Prefer restricted/private ingress plus the harness's own authentication.
 
 ## Durable state
 
-Prefer upstream state whenever it is authoritative for agent behavior: sessions, messages, runs, memory, approvals, tools, capabilities, or equivalent harness-native constructs.
+Prefer harness-native state whenever it is authoritative for agent behavior: sessions, messages, runs, memory, approvals, tools, capabilities, or equivalent constructs.
 
-Our database should contain only product-owned state that cannot live upstream cleanly, such as consumer identity, selected harness/connection mapping, entitlements, billing references, and product preferences.
-
-Do not mirror harness runtime state without a specific product, query, or reliability requirement.
+Our database, when one is actually required, contains product-owned state such as identity, harness/runtime mapping, entitlements, billing references, and product preferences. Do not mirror harness runtime state just to create symmetry.
 
 ## Deployment and manual testing
 
-Vercel is an acceptable deployment target for the consumer web/product boundary and manual testing environments. Deployment configuration must not expose upstream harness credentials to client-side code.
+Vercel is an acceptable consumer/product boundary. The harness runtime is separately hosted on infrastructure appropriate to the harness.
 
-A deployment is a validation surface, not proof that a harness feature works until the real upstream flow is exercised manually or in E2E tests.
+A deployment is not proof until the real browser -> product -> harness flow is exercised.
 
-## Future distribution channels
+## Future channels
 
-ChatGPT plugin / Apps SDK / MCP is V2+. It should become another client of the same consumer/account and harness-connector boundaries. It must not cause V1 to introduce ChatGPT-specific domain state.
-
-Other possible channels include native mobile, Telegram, or partner integrations.
+ChatGPT plugin / Apps SDK / MCP is V2+. It becomes another client of the same product/connector boundaries rather than defining V1 architecture.
 
 ## Source-of-truth hierarchy
 

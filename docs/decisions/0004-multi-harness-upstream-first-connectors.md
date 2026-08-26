@@ -1,55 +1,51 @@
 # ADR 0004 — Multi-Harness Product, Upstream-First Connectors
 
-Status: Accepted
+Status: Accepted; hosting assumptions refined by ADR 0005
 
 ## Context
 
-ADR 0003 correctly moved the product away from rebuilding Hermes as a generic control plane. However, Hermes is the first MVP harness, not the permanent product identity.
+ADR 0003 moved the product away from rebuilding Hermes as a generic control plane. Hermes is the first MVP harness, not the permanent product identity.
 
-The long-term product should let a consumer use capable general-purpose agent harnesses through one simple experience. Hermes is first because its hosted infrastructure and supported APIs make it the fastest path to a real MVP. OpenClaw is the planned second harness and should be used to prove whether the connector boundary is genuinely reusable.
+The long-term product lets consumers use capable general-purpose harnesses through one simple experience. OpenClaw is the planned second harness and will test whether the connector boundary is genuinely reusable.
 
-The main architectural risk is overcorrecting in either direction:
-
-- coupling the consumer product directly to Hermes everywhere would make the second harness a rewrite;
-- rebuilding a generic task/session/runtime platform would duplicate the harnesses themselves.
+The main architectural risks are coupling product code to one harness everywhere or rebuilding a generic runtime that duplicates the harnesses.
 
 ## Decision
 
-Make the consumer/account product boundary harness-neutral while keeping execution state upstream in each harness.
+Make the consumer/account boundary harness-neutral while keeping execution and native state upstream in each harness.
 
-Introduce only a thin harness connector seam. A connector may own:
-
-- connection/authentication details;
-- endpoint and lifecycle discovery;
-- capability discovery and translation;
-- request/stream transport;
-- mapping stable upstream identifiers into consumer-facing references where required;
-- harness-specific error translation and diagnostics.
+Introduce only a thin harness connector seam. A connector may own connection/authentication, endpoint/lifecycle discovery, capability discovery, transport, stable upstream references, and harness-specific diagnostics.
 
 A connector does **not** own a parallel agent runtime, task engine, session database, memory system, tool orchestration system, or generic scheduler.
 
-The consumer layer may own shared product concerns such as identity, onboarding, selected harness/agent connection, permissions/entitlements, billing references, and simplified UX.
+The consumer layer may own identity, onboarding, selected harness/runtime mapping, permissions/entitlements, billing references, and simplified UX.
+
+## Hosting refinement
+
+A harness connector is independent of the hosting vendor.
+
+For M1, Hermes runs on operator-controlled infrastructure because that gives the product a secure machine API boundary while still using Hermes itself as the authoritative runtime. Managed harness hosting may replace that infrastructure later only when it exposes the required machine API/lifecycle/isolation contract.
 
 ## Sequencing
 
-1. Hermes is the only harness required for the MVP and first production web release.
-2. Do not delay the Hermes MVP to generalize for hypothetical harnesses.
-3. Keep Hermes-specific APIs behind the smallest practical connector boundary when product code is introduced.
-4. OpenClaw is the planned second harness after the Hermes web MVP is working.
-5. Use the OpenClaw implementation to validate or revise the connector contract from evidence rather than abstraction aesthetics.
-6. Additional harnesses are added only when they provide concrete user value.
+1. Hermes is the only harness required for MVP and the first production web release.
+2. Prove one operator-controlled Hermes end-to-end user journey before broader lifecycle automation.
+3. Do not delay Hermes to generalize for hypothetical harnesses.
+4. Keep Hermes-specific transport behind the smallest practical connector boundary.
+5. OpenClaw is the planned second harness after the Hermes web MVP.
+6. Use OpenClaw to validate/revise the connector contract from evidence.
+7. Add other harnesses only for concrete user value.
 
 ## Consequences
 
-- The product can eventually support multiple harnesses without treating any one harness as the product identity.
-- Hermes remains a first-class upstream dependency for MVP work.
-- Shared product state must not mirror authoritative runtime state merely to create cross-harness symmetry.
-- Capability differences remain visible; the UI should degrade or adapt rather than pretend every harness supports identical behavior.
-- ADR 0003 remains valid for the upstream-first principle but is narrowed by this ADR where it described Hermes as the long-term product boundary.
-- ChatGPT remains a future distribution channel and is independent of which harness executes the work.
+- The product can support multiple harnesses without making one harness or hosting vendor the product identity.
+- Shared product state must not mirror authoritative runtime state merely for symmetry.
+- Capability differences remain visible.
+- Runtime infrastructure may differ by harness while the consumer/account experience remains shared.
+- ChatGPT remains a future distribution channel independent of the execution harness.
 
 ## Planned harness sequence
 
-- **MVP:** Hermes / Nous Portal / Hermes Cloud
+- **MVP:** Hermes on product-operated runtime infrastructure; Nous Portal/provider services may be used upstream
 - **Second harness:** OpenClaw
-- **Later:** other harnesses only when there is a product-driven reason
+- **Later:** other harnesses only when product-driven

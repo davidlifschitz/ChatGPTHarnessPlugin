@@ -13,24 +13,26 @@ Treat this repository plus verified current upstream behavior as authoritative o
 
 ## Development rules
 
-- Every substantial change must map to a roadmap milestone.
+- Every substantial change maps to a roadmap milestone.
 - The product is harness-neutral; **Hermes is the MVP harness and OpenClaw is the planned second harness**.
-- Verify whether the selected harness already provides a capability before designing or implementing a replacement.
-- Prefer supported upstream APIs/lifecycle surfaces over custom runtime state machines.
-- Add custom backend/state only for a documented consumer-product gap or truly shared product concern.
-- Keep harness-specific authentication, endpoints, transport, lifecycle access, capability handling, and diagnostics behind the smallest practical connector seam.
+- Separate harness software from hosting provider. Do not assume managed harness hosting is the architecture.
+- Verify whether the selected harness already provides a capability before implementing a replacement.
+- Prefer upstream harness APIs and semantics over custom runtime state machines.
+- It is acceptable to operate the harness on product-controlled VM/container infrastructure when required for secure machine access.
+- Product-operated infrastructure must stay minimal and invisible to the user; do not turn it into a generic agent platform prematurely.
+- Add custom backend/state only for documented consumer gaps or shared product concerns.
+- Keep harness-specific auth/endpoints/transport/capability handling behind the smallest practical connector seam.
 - Do not recreate harness sessions, runs, approvals, memory, skills, tools, model routing, or equivalent native runtime state by default.
-- Do not build a generic multi-harness control plane. Generalize the connector seam only from evidence produced by real harness implementations.
-- Do not delay the Hermes MVP to pre-build OpenClaw abstractions.
-- After the Hermes production web MVP, OpenClaw is the next planned harness and should be used to validate/revise the connector boundary.
+- Do not build a generic multi-harness control plane. Generalize only from real Hermes/OpenClaw evidence.
+- Do not delay Hermes to pre-build OpenClaw abstractions.
+- After the Hermes production web MVP, OpenClaw is next and should validate/revise the connector boundary.
 - Keep harness/provider credentials server-side and out of browser code, prompts, logs, issues, PRs, and source control.
-- Unsupported or unverified capabilities fail explicitly; never fabricate working behavior.
+- Unsupported/unverified capabilities fail explicitly.
 - Update `STATE.md` only with verified reality.
 - Add an ADR when a long-lived architecture decision changes.
-- Record milestone, harness/surface, acceptance criteria, temporary debt, and production replacement path in issues/PRs.
-- Vercel deployments may be used for manual browser/phone testing, but never expose upstream harness secrets in client bundles.
-- ChatGPT plugin/Apps SDK/MCP work is V2+ and must not shape V1 domain architecture.
+- Vercel may host the consumer surface; upstream harness secrets must never enter client bundles.
+- ChatGPT plugin/Apps SDK/MCP is V2+ and must not shape V1 domain architecture.
 
 ## Current critical path
 
-The current milestone is **M1 — Hermes Thin Consumer Path**. Prove the simplest real deployed browser experience over the existing Hermes API server and Hermes Cloud, including manual desktop/phone testing, before authorizing bespoke platform infrastructure.
+The current milestone is **M1 — Hermes Controlled-Runtime End-to-End**. Deploy one persistent official Hermes runtime on infrastructure controlled by the product operator, connect the protected Vercel test client to it securely, and prove a real phone/desktop user journey before authorizing broader platform automation.

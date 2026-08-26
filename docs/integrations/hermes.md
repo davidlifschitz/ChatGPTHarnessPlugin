@@ -1,75 +1,64 @@
 # Hermes Integration
 
-Hermes is the upstream agent system for V1, not an interchangeable runtime hidden behind a generic adapter.
+Hermes is the upstream agent system for V1. It remains authoritative for execution and native state regardless of who hosts its process.
 
 ## Verified supported surfaces
 
-Current official Hermes documentation provides three programmatic protocols. For the consumer web product, the primary surface is the HTTP API server.
+Current official Hermes documentation provides an authenticated HTTP API server with:
 
-The API server currently documents:
+- OpenAI-compatible chat completions and streaming;
+- Responses API;
+- asynchronous runs/control/events;
+- `/v1/capabilities`;
+- `/v1/models`;
+- REST session management/history/chat/streaming;
+- skills/toolset discovery;
+- stable `X-Hermes-Session-Key` memory scoping.
 
-- `POST /v1/chat/completions` with SSE streaming;
-- `POST /v1/responses`;
-- asynchronous run start/status/events;
-- approval, steering, and stop controls;
-- `GET /v1/capabilities` for feature detection;
-- `GET /v1/models` for OpenAI-compatible model discovery;
-- session list/create/read/update/delete/history/fork/chat/stream operations;
-- skills and toolset discovery;
-- `X-Hermes-Session-Key` for stable multi-user/channel memory scoping.
-
-`/v1/models` advertises the API-server model name. Official documentation states that this defaults to the active profile name, or `hermes-agent` for the default profile, so consumers should discover it rather than assume a fixed model ID.
-
-Hermes also explicitly documents compatibility with OpenAI-compatible frontends such as Open WebUI, LobeChat, LibreChat, NextChat, and ChatBox.
+Consumers should discover the advertised API model instead of assuming a fixed model ID.
 
 ## Product boundary
 
-Hermes owns:
+Hermes owns agent execution/tool loops, run/session semantics, message history, approvals/control, skills/toolsets/MCP execution, memory, and provider/model integration.
 
-- agent execution and tool loops;
-- run/session semantics;
-- session message history;
-- approvals/steering/stop behavior exposed by its API;
-- skills/toolsets and MCP execution;
-- agent memory mechanisms;
-- provider/model/tool-gateway integration.
+Our product does not duplicate these systems by default.
 
-Our product should not duplicate these systems by default.
+## M1 integration strategy
 
-## V1 integration strategy
+1. Run an official Hermes runtime on a persistent operator-controlled cloud host.
+2. Persist Hermes-native data using the supported host volume/state layout.
+3. Configure provider/model/tool access through supported Hermes setup, including Nous Portal where useful.
+4. Enable the Hermes API server with a server-side bearer key.
+5. Place the API behind restricted machine ingress; do not expose the raw agent port broadly.
+6. Probe `/v1/capabilities`, `/v1/models`, and `/api/sessions` before model execution.
+7. Preserve Hermes session/run identifiers and semantics.
+8. Add product mediation only for credentials, authorization, account mapping, UX, or other observed gaps.
 
-1. Use a real Hermes API server as the backend.
-2. Probe `/v1/capabilities` rather than hardcoding assumed features.
-3. Discover the exposed model ID from `/v1/models`.
-4. Begin with an existing OpenAI-compatible frontend if it satisfies the required interaction model.
-5. Preserve Hermes session/run identifiers and semantics.
-6. Add server-side mediation only where required for credentials, authorization, consumer account mapping, or missing product UX.
+## Network and deployment constraints
 
-## Network and deployment constraint
+Official Hermes configuration documents:
 
-Official Hermes configuration currently defaults to:
-
-- `API_SERVER_ENABLED=false`;
-- `API_SERVER_HOST=127.0.0.1`;
-- `API_SERVER_PORT=8642`;
+- `API_SERVER_ENABLED=false` by default;
+- `API_SERVER_HOST=127.0.0.1` by default;
+- `API_SERVER_PORT=8642` by default;
 - `API_SERVER_KEY` required whenever the API server is enabled.
 
-For network access, Hermes documentation shows explicitly enabling the API server and binding it to a reachable interface such as `0.0.0.0`, together with a bearer key and an appropriate ingress/port/reverse-proxy configuration. Exposing this surface is security-sensitive because the API can drive the agent's full toolset, including terminal operations.
+Official Docker guidance shows deliberate network binding and persistent host data. Opening the API port on an Internet-facing machine is security-sensitive because Hermes can exercise powerful tools, so M1 should use a restricted/private or access-controlled HTTPS path in addition to Hermes bearer auth.
 
-Most documented web frontends can use a server-to-server OpenAI-compatible connection, so V1 should prefer that pattern over exposing `API_SERVER_KEY` to browser JavaScript.
+## Managed Hermes Cloud finding
+
+The previously tested public managed-Cloud dashboard hostname is not a usable `API_SERVER_KEY`-only machine origin under the observed contract because a human-facing Nous OAuth gate processes the Authorization header first.
+
+That result is historical evidence about one hosting product. It is not a limitation of the Hermes API server itself and no longer blocks M1.
 
 ## Security
 
-`API_SERVER_KEY`, Portal tokens, provider credentials, and other secrets must remain server-side. If a browser frontend cannot keep the API key secret, it must connect through a trusted server-side proxy/session rather than receive the upstream credential.
-
-## Open question for M1
-
-The exact externally reachable URL/auth/network configuration of the existing Hermes Cloud instance still needs live verification. Current official self-hosted/API-server documentation proves how Hermes can be exposed; it does not prove that the user's current Hermes Cloud instance automatically publishes port 8642 or an equivalent API URL.
+`API_SERVER_KEY`, Portal tokens, provider credentials, and ingress credentials remain server-side. Browser JavaScript never receives upstream secrets.
 
 ## Authoritative references
 
 - https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
 - https://hermes-agent.nousresearch.com/docs/reference/environment-variables
-- https://hermes-agent.nousresearch.com/docs/user-guide/docker
+- https://hermes-agent.nousresearch.com/docs/user-guide/docker/
 - https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration
-- https://hermes-agent.nousresearch.com/docs/user-guide/features/web-dashboard
+- https://hermes-agent.nousresearch.com/docs/integrations/nous-portal
