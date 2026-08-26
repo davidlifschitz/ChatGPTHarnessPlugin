@@ -1,4 +1,4 @@
-name: Python tests
+name: M1 tests
 
 on:
   push:
@@ -22,11 +22,25 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run unit tests
+      - name: Run Hermes probe unit tests
         run: python -m unittest -v tests.test_hermes_probe
 
-      - name: Compile probe
+      - name: Compile Hermes probe
         run: python -m py_compile tools/hermes_probe.py tests/test_hermes_probe.py
 
-      - name: Verify CLI help
+      - name: Verify Hermes probe CLI help
         run: python tools/hermes_probe.py --help
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run web surface tests
+        run: node --test tests/web/*.test.js
+
+      - name: Check server-side JavaScript syntax
+        run: |
+          node --check lib/hermes.js
+          node --check api/status.js
+          node --check api/chat.js

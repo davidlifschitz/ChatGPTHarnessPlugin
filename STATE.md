@@ -41,9 +41,11 @@ Authoritative references:
 - OpenClaw is explicitly the planned second harness; no OpenClaw runtime capability is yet recorded as verified by this repository.
 - ADR 0004 defines a thin harness connector seam for transport/auth/capability/lifecycle differences while keeping authoritative runtime state upstream in each harness.
 - The repository contains `tools/hermes_probe.py`, a standard-library HTTP probe for Hermes capabilities, model discovery, and sessions with explicitly opt-in chat execution.
-- The current local unit suite passes 6 focused tests against a local HTTP server, covering bearer auth, credential redaction, advertised-model discovery, optional session-API handling, and explicit chat behavior.
+- The current local unit suite passes 6 focused Python tests against a local HTTP server, covering bearer auth, credential redaction, advertised-model discovery, optional session-API handling, and explicit chat behavior.
 - `python tools/hermes_probe.py --help` and Python bytecode compilation succeed in the local validation environment.
-- Vercel is now documented as an acceptable manual-test deployment target for the consumer surface, provided harness secrets remain server-side. No Vercel deployment has been performed or verified in this repository yet.
+- The branch now contains a dependency-free Vercel M1 browser test surface: a static mobile-friendly page, server-only `/api/status` and `/api/chat` routes, and a thin Hermes HTTP connector that discovers the advertised model instead of hardcoding it.
+- The new web test suite passes 10 Node tests covering server-only bearer auth, model discovery, API route behavior, configuration errors, and a guard that browser code contains no Hermes server configuration or bearer handling.
+- Vercel is documented as an acceptable manual-test deployment target for the consumer surface, provided harness secrets remain server-side. No Vercel deployment for this repository has yet been verified.
 
 ## Not yet verified / not yet implemented
 
@@ -52,6 +54,9 @@ Authoritative references:
 - A deployed Open WebUI/LobeChat/custom frontend connected to the user's real Hermes Cloud instance.
 - The exact public/private network endpoint and authentication mechanism available from the existing Hermes Cloud instance for the Hermes API server.
 - A successful run of `tools/hermes_probe.py` against that real Hermes Cloud instance.
+- A real browser -> Vercel -> Hermes test turn.
+- Streaming/tool progress through the browser test surface.
+- Explicit session creation/resume from the browser test surface.
 - Whether an off-the-shelf frontend satisfies the desired consumer UX without custom code.
 - Consumer account-to-harness/agent provisioning/mapping.
 - Production credential mediation for public users.
@@ -65,7 +70,7 @@ Authoritative references:
 1. Determine the real Hermes API-server URL/network path for the existing Hermes Cloud instance without exposing credentials.
 2. Run the read-only Hermes probe against it.
 3. Run one explicit real test turn after the read-only checks pass.
-4. Deploy/connect a browser test surface, using Vercel where useful, through a safe server-side connection.
+4. Deploy/connect the repository's M1 browser test surface through a safe server-side connection.
 5. Manually test the deployed flow from desktop and phone.
 6. Verify chat, streaming/tool progress, session resume, and per-user memory/session isolation.
 7. Record exactly which consumer requirements remain unmet.

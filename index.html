@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Harness — Hermes M1</title>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: Canvas; color: CanvasText; }
+    main { width: min(760px, 100%); min-height: 100vh; margin: 0 auto; padding: 24px 18px 40px; display: flex; flex-direction: column; gap: 18px; }
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    h1 { margin: 0; font-size: clamp(1.35rem, 5vw, 1.9rem); letter-spacing: -0.03em; }
+    .subtle { margin: 5px 0 0; color: color-mix(in srgb, CanvasText 62%, Canvas); font-size: .92rem; line-height: 1.45; }
+    .status { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; border: 1px solid color-mix(in srgb, CanvasText 18%, Canvas); border-radius: 999px; padding: 7px 10px; font-size: .82rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #8a8a8a; }
+    .status[data-state="connected"] .dot { background: #20a464; }
+    .status[data-state="error"] .dot { background: #d95040; }
+    #transcript { flex: 1; min-height: 360px; border: 1px solid color-mix(in srgb, CanvasText 14%, Canvas); border-radius: 18px; padding: 14px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+    .empty { margin: auto; text-align: center; max-width: 420px; color: color-mix(in srgb, CanvasText 55%, Canvas); line-height: 1.5; }
+    .message { max-width: 88%; padding: 11px 13px; border-radius: 15px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.48; }
+    .message.user { align-self: flex-end; background: color-mix(in srgb, Highlight 16%, Canvas); }
+    .message.assistant { align-self: flex-start; background: color-mix(in srgb, CanvasText 7%, Canvas); }
+    .message.error { align-self: stretch; max-width: none; border: 1px solid color-mix(in srgb, #d95040 40%, Canvas); background: color-mix(in srgb, #d95040 8%, Canvas); }
+    form { display: grid; gap: 10px; }
+    textarea { width: 100%; min-height: 92px; max-height: 240px; resize: vertical; border: 1px solid color-mix(in srgb, CanvasText 18%, Canvas); border-radius: 16px; padding: 13px; font: inherit; background: Canvas; color: CanvasText; }
+    textarea:focus { outline: 2px solid Highlight; outline-offset: 2px; }
+    .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .hint { color: color-mix(in srgb, CanvasText 52%, Canvas); font-size: .8rem; }
+    button { border: 0; border-radius: 999px; padding: 10px 17px; font: inherit; font-weight: 650; background: Highlight; color: HighlightText; cursor: pointer; }
+    button:disabled { cursor: wait; opacity: .6; }
+    @media (max-width: 520px) { main { padding: 18px 12px 24px; } header { align-items: center; } .subtle { display: none; } #transcript { min-height: 52vh; } .hint { display: none; } .actions { justify-content: flex-end; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Hermes test surface</h1>
+        <p class="subtle">M1 validation client. Hermes remains the runtime; this page only mediates the connection.</p>
+      </div>
+      <div id="status" class="status" data-state="checking" aria-live="polite"><span class="dot"></span><span id="statusText">Checking…</span></div>
+    </header>
+
+    <section id="transcript" aria-live="polite">
+      <p id="empty" class="empty">Connect the server to Hermes, then send a message. Responses currently appear all at once; streaming and session resume are intentionally not implemented yet.</p>
+    </section>
+
+    <form id="chatForm">
+      <label for="message" class="hint">Message Hermes</label>
+      <textarea id="message" name="message" placeholder="Ask Hermes to do something…" required maxlength="20000"></textarea>
+      <div class="actions">
+        <span id="model" class="hint"></span>
+        <button id="send" type="submit">Send</button>
+      </div>
+    </form>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const statusText = document.getElementById('statusText');
+    const modelEl = document.getElementById('model');
+    const transcript = document.getElementById('transcript');
+    const empty = document.getElementById('empty');
+    const form = document.getElementById('chatForm');
+    const input = document.getElementById('message');
+    const send = document.getElementById('send');
+
+    function setStatus(state, text, model) {
+      statusEl.dataset.state = state;
+      statusText.textContent = text;
+      modelEl.textContent = model ? `Model: ${model}` : '';
+    }
+
+    function addMessage(role, text) {
+      if (empty) empty.remove();
+      const node = document.createElement('div');
+      node.className = `message ${role}`;
+      node.textContent = text;
+      transcript.appendChild(node);
+      transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    async function readJson(response) {
+      try { return await response.json(); }
+      catch { return { error: `Server returned HTTP ${response.status}.` }; }
+    }
+
+    async function refreshStatus() {
+      try {
+        const response = await fetch('/api/status', { headers: { accept: 'application/json' } });
+        const data = await readJson(response);
+        if (!response.ok || !data.connected) throw new Error(data.error || 'Hermes is unavailable.');
+        setStatus('connected', 'Connected', data.model);
+      } catch (error) {
+        setStatus('error', 'Not connected');
+        modelEl.textContent = error.message || 'Hermes is unavailable.';
+      }
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const message = input.value.trim();
+      if (!message || send.disabled) return;
+      addMessage('user', message);
+      input.value = '';
+      send.disabled = true;
+      send.textContent = 'Working…';
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({ message }),
+        });
+        const data = await readJson(response);
+        if (!response.ok) throw new Error(data.error || `Request failed with HTTP ${response.status}.`);
+        addMessage('assistant', data.message);
+        setStatus('connected', 'Connected', data.model);
+      } catch (error) {
+        addMessage('error', error.message || 'Hermes request failed.');
+        setStatus('error', 'Connection issue');
+      } finally {
+        send.disabled = false;
+        send.textContent = 'Send';
+        input.focus();
+      }
+    });
+
+    refreshStatus();
+  </script>
+</body>
+</html>
