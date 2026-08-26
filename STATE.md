@@ -1,51 +1,61 @@
-# ChatGPTHarnessPlugin — Verified Current State
+# Hermes Consumer Layer — Verified Current State
 
-Last verified: 2026-08-24
+Last verified: 2026-08-26
 
-This file records project reality, not intended future behavior. Update it only when a fact has been verified in code, a live integration, or authoritative external documentation.
+This file records verified reality, not intended future behavior.
 
 ## Current milestone
 
-**M1 — Hermes Runtime Adapter**
+**M1 — Thin Consumer Path**
 
 Status: **in progress**
 
-## Verified working
+## Verified upstream capabilities
 
-- The dedicated public repository `davidlifschitz/ChatGPTHarnessPlugin` exists and is the canonical product repository.
-- The repository has an initialized `main` branch.
-- The project architecture is being organized around a shared Harness Control Plane and runtime adapters.
-- Hermes is the first runtime integration target, not the product boundary.
-- A separate Hermes source fork exists and must be treated as a dependency/runtime workspace rather than the canonical product repository.
+From current official Hermes/Nous documentation:
+
+- Hermes exposes an OpenAI-compatible HTTP API server.
+- Hermes exposes REST session APIs for listing, creating, reading, updating, deleting, forking, reading messages, and running/streaming turns.
+- Hermes exposes asynchronous run/control endpoints and a machine-readable capabilities endpoint.
+- Hermes exposes stable `X-Hermes-Session-Key` scoping intended for multi-user frontends and long-term memory separation.
+- Hermes documents compatibility with Open WebUI, LobeChat, LibreChat, NextChat, ChatBox, and other OpenAI-compatible clients.
+- Nous Portal OAuth can configure Hermes model/tool access.
+- Nous Portal MCP can list, create, start, stop, restart, update, and destroy Hermes Cloud instances within the authenticated Portal organization.
+
+Authoritative references:
+
+- https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
+- https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration
+- https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
+- https://hermes-agent.nousresearch.com/docs/integrations/nous-portal
+
+## Verified repository reality
+
+- `davidlifschitz/ChatGPTHarnessPlugin` is the current canonical repository.
+- Before this product reset, the repository contained architecture/documentation but no application source tree.
+- The old design assumed this product should own a generic harness control plane. That assumption is now superseded because substantial run/session/control functionality already exists upstream in Hermes.
 
 ## Not yet verified / not yet implemented
 
-- A shared control-plane service implementation.
-- A working Hermes runtime adapter.
-- A working OpenClaw, Pi, or other secondary harness adapter.
-- ChatGPT → MCP/app → shared control plane → Hermes end-to-end execution.
-- Durable cross-request task/session persistence in this product.
-- Production user authentication and tenant isolation.
-- Production OAuth linkage to Nous Portal.
-- Public ChatGPT app/plugin registration or publication.
-- Mobile end-to-end use of the published product.
-- Production deployment, rate limiting, observability, or billing.
-
-## Known technical uncertainty
-
-Older planning work for the Hermes-specific bridge assumed an existing `/v1/runs`-style API surface in a Hermes fork. That assumption must not be treated as implementation truth until the current Hermes remote-control surface is re-verified.
-
-The runtime adapter should be based on supported, observed capabilities rather than invented endpoints or internal file names.
+- A public consumer web experience.
+- A deployed Open WebUI/LobeChat/custom frontend connected to the user's real Hermes Cloud instance.
+- The exact public/private network endpoint and authentication mechanism available from the existing Hermes Cloud instance for the Hermes API server.
+- Whether an off-the-shelf frontend satisfies the desired consumer UX without custom code.
+- Consumer account-to-Hermes-instance provisioning/mapping.
+- Production credential mediation for public users.
+- Multi-user tenant isolation for this product layer.
+- Billing, entitlements, analytics, rate limiting, or public onboarding.
+- ChatGPT integration; it is intentionally deferred to V2+.
 
 ## Current critical path
 
-1. Verify current Hermes remote-control/session behavior.
-2. Verify what Nous Portal MCP covers for Hermes Cloud discovery/lifecycle versus conversational task execution.
-3. Define and implement the minimal shared runtime-adapter contract.
-4. Implement Hermes adapter #1.
-5. Prove programmatic task execution and lifecycle behavior.
-6. Put the private ChatGPT/MCP client over the same shared service boundary.
+1. Verify the real Hermes Cloud instance exposes or can expose the supported Hermes API server safely.
+2. Connect one proven OpenAI-compatible frontend to that real instance.
+3. Verify chat, streaming/tool progress, session resume, and per-user memory/session isolation.
+4. Record exactly which consumer requirements remain unmet.
+5. Build only the minimum custom product layer needed for those unmet requirements.
+6. Harden and deploy the resulting web experience.
 
 ## State-update rule
 
-Whenever a PR materially changes what is demonstrably working, blocked, or verified, update this file in the same PR. Plans, mocks, interfaces, and tests against fakes do not by themselves prove a live external integration works.
+Plans, mocks, fake adapters, and tests against simulated Hermes do not prove an integration works. Update this file when behavior is observed against the actual upstream surface or verified in authoritative upstream documentation.
