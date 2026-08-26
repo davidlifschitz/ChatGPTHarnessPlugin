@@ -31,16 +31,23 @@ The browser never receives Hermes/Portal credentials.
 M1 proves the upstream path before product scaffolding.
 
 1. Build a small executable probe for a configured Hermes API base URL.
-2. Probe `/v1/capabilities` and a read-only session endpoint.
-3. Report supported features without fabricating absent capabilities.
-4. Keep chat execution opt-in so the default probe does not consume model/tool resources.
-5. When explicitly enabled, run one real test message through the supported API.
-6. Use probe results to choose the least-custom viable frontend, starting with Open WebUI or LobeChat because Hermes documents OpenAI-compatible compatibility.
-7. Record gaps before custom backend implementation.
+2. Probe `/v1/capabilities`, `/v1/models`, and a read-only session endpoint.
+3. Use `/v1/models` rather than assuming a fixed model ID; named Hermes profiles can advertise their profile name.
+4. Report supported features without fabricating absent capabilities.
+5. Keep chat execution opt-in so the default probe does not consume model/tool resources.
+6. When explicitly enabled, run one real test message through the advertised model ID.
+7. Use probe results to choose the least-custom viable frontend, starting with Open WebUI or LobeChat because Hermes documents OpenAI-compatible compatibility.
+8. Record gaps before custom backend implementation.
+
+## Deployment constraint
+
+Current official Hermes configuration defaults leave the API server disabled and bound to `127.0.0.1` when enabled without a host override. External consumer use therefore requires an explicit, secured network path; M1 must verify how the existing Hermes Cloud instance supplies that path rather than assuming a public API URL exists.
 
 ## Security
 
 Configuration uses environment variables or process-local inputs. Credentials are never committed, echoed in normal output, embedded in browser code, or placed in prompts.
+
+A web frontend should connect server-to-server where possible. If browser JavaScript would otherwise need `API_SERVER_KEY`, insert a trusted server-side mediation layer instead.
 
 ## Error behavior
 
@@ -52,6 +59,7 @@ Missing optional capabilities are reported as unsupported, not treated as probe 
 
 - a test suite validates the probe against a local HTTP test server;
 - read-only probe mode checks real HTTP endpoints and returns structured results;
+- model selection is discovered from `/v1/models` rather than hardcoded;
 - no credential appears in logs/output during tests;
 - optional live-chat mode is explicit;
 - repository docs clearly state that a real Hermes Cloud endpoint still needs live verification;
