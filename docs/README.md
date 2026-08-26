@@ -10,8 +10,14 @@ The root documents define product truth:
 Supporting documentation:
 
 - `decisions/` — architecture decision records (ADRs).
-- `integrations/` — current facts and constraints for ChatGPT, Hermes, Nous Portal, Cloudflare, and future harnesses/providers.
-- `product/` — private/canary path, publish path, and release requirements.
-- `implementation/` — detailed implementation plans tied to roadmap milestones.
+- `integrations/` — verified current facts and constraints for Hermes, Nous Portal, Cloudflare, and other active upstream dependencies.
+- `product/` — current consumer-product requirements and experiments.
+- `future-channels/` — deferred distribution channels such as ChatGPT.
+- `implementation/` — implementation material tied to current roadmap milestones.
+- `superpowers/specs/` and `superpowers/plans/` — approved design and implementation-plan artifacts.
 
-Detailed plans do not override verified runtime behavior or `STATE.md`.
+## Current rule
+
+V1 is upstream-first. A proposed custom service or state model must identify the consumer requirement it serves and the verified Hermes/Nous gap that requires it.
+
+Detailed plans do not override observed runtime behavior, authoritative current upstream documentation, or `STATE.md`.

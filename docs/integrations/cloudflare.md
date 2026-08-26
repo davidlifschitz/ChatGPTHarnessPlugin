@@ -1,17 +1,17 @@
 # Cloudflare Integration
 
-Cloudflare is edge/transport infrastructure, not the agent control plane.
+Cloudflare is optional edge/transport infrastructure, not the product's agent runtime or durable state owner.
 
 Useful roles may include:
 
-- DNS and TLS,
-- secure ingress to a private origin,
-- Cloudflare Tunnel,
-- WAF and rate limiting,
+- DNS and TLS;
+- secure ingress to a private Hermes or product origin;
+- Cloudflare Tunnel;
+- WAF and rate limiting;
 - origin protection.
 
-The control plane remains responsible for user identity, tenant authorization, task/session state, runtime routing, approvals, and durable product logic.
+Hermes/Nous remains authoritative for agent execution and upstream session/run behavior. Any product-owned identity, entitlement, or credential-mediation logic should live in the minimal trusted application boundary rather than in tunnel or WAF configuration.
 
 ## Portability rule
 
-The platform must remain operable if Cloudflare is replaced by another edge/network provider. Application domain logic must not live inside tunnel or WAF configuration.
+The product should remain operable if Cloudflare is replaced by another edge/network provider. Do not make Cloudflare a prerequisite unless M1/M2 verifies a concrete networking requirement that needs it.

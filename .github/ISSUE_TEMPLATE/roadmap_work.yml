@@ -1,20 +1,19 @@
-name: Harness roadmap work
-description: Track work that advances the ChatGPTHarnessPlugin roadmap.
-title: "[Harness] "
+name: Hermes consumer roadmap work
+description: Track work that advances the upstream-first consumer product roadmap.
+title: "[Hermes Consumer] "
 body:
   - type: dropdown
     id: milestone
     attributes:
       label: Roadmap milestone
       options:
-        - M0 — Product Architecture and Repository Foundation
-        - M1 — Hermes Runtime Adapter
-        - M2 — Private ChatGPT Control
-        - M3 — Production Identity and Isolation
-        - M4 — Private/Public Convergence
-        - M5 — Release Candidate
-        - M6 — Publish First Harness Plugin
-        - M7 — Prove Second Harness Adapter
+        - M0 — Product Reset
+        - M1 — Thin Consumer Path
+        - M2 — Minimal Consumer Product Layer
+        - M3 — Multi-User Isolation and Provisioning
+        - M4 — Production Web Release
+        - M5 — Product Economics and Growth Layer
+        - V2+ — Additional Distribution Channels
     validations:
       required: true
   - type: dropdown
@@ -23,27 +22,27 @@ body:
       label: Surface
       multiple: true
       options:
-        - Shared control plane
-        - Private/canary
-        - Published/stable
-        - Hermes adapter
-        - Other harness adapter
-        - ChatGPT integration
+        - Consumer web
+        - Hermes API integration
+        - Nous Portal / Hermes Cloud
+        - Identity / credential mediation
+        - Provisioning / isolation
         - Infrastructure
+        - Future channel
     validations:
       required: true
   - type: textarea
     id: capability
     attributes:
       label: Capability advanced
-      description: What user or platform capability does this move forward?
+      description: What user or product capability does this move forward?
     validations:
       required: true
   - type: textarea
-    id: end_state
+    id: upstream_gap
     attributes:
-      label: End-state compatibility
-      description: Explain how this fits the shared control plane and avoids client- or harness-specific rewrite debt.
+      label: Upstream capability and gap
+      description: What does Hermes/Nous already provide, and what verified gap requires custom work here?
     validations:
       required: true
   - type: textarea
@@ -65,7 +64,7 @@ body:
     id: validation
     attributes:
       label: Validation plan
-      description: Tests, commands, or end-to-end flows that prove the acceptance criteria.
+      description: Tests, commands, or real-Hermes end-to-end flows that prove the acceptance criteria.
     validations:
       required: true
   - type: checkboxes
@@ -75,7 +74,9 @@ body:
       options:
         - label: I checked PROJECT.md, STATE.md, ROADMAP.md, and ARCHITECTURE.md.
           required: true
-        - label: This work does not put credentials or tokens into source, prompts, logs, issues, or model-visible results.
+        - label: I verified whether Hermes/Nous already provides the proposed capability before adding custom infrastructure.
           required: true
-        - label: Unsupported external/runtime capabilities will be reported explicitly rather than fabricated.
+        - label: This work does not put credentials or tokens into browser code, source, prompts, logs, issues, or model-visible results.
+          required: true
+        - label: Unsupported or unverified upstream capabilities will be reported explicitly rather than fabricated.
           required: true

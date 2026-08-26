@@ -1,88 +1,116 @@
-# ChatGPTHarnessPlugin — Project Overview
+# Harness Consumer Layer — Project Overview
 
-This repository is the canonical source of truth for the ChatGPT Harness Plugins product.
+This repository is the canonical source of truth for a consumer distribution layer over general-purpose agent harnesses.
 
 ## End goal
 
-Build a cloud-hosted, function-agnostic control plane that lets people invoke powerful agent harnesses directly from ChatGPT on web, mobile, and desktop/Codex without needing to understand MCP, tunnels, VPS hosting, agent processes, or harness-specific infrastructure.
+A normal user should be able to open a mobile or desktop experience, sign in, receive or choose an agent, and use it without understanding which harness, model provider, cloud host, MCP server, container, tunnel, or runtime process is underneath.
 
-The platform should support agents that code, research, market, perform SEO, operate browser workflows, handle productivity tasks, or do other general-purpose work.
+The customer should experience an agent product, not infrastructure administration.
 
-## Product model
+## Harness strategy
 
-ChatGPT is a client, not the control plane.
+The product is multi-harness by design and sequential by implementation.
 
-The shared control plane owns:
+- **Hermes is the MVP harness.** Its supported API server, sessions, tools, memory, and model/provider integrations give us the shortest path to proving the product thesis.
+- **OpenClaw is the planned second harness.** It validates the connector boundary against a materially different runtime.
+- Additional harnesses are added only for concrete user value.
 
-- identity and tenant resolution,
-- harness/runtime registry and routing,
-- durable task and session state,
-- authorization, policy, and approvals,
-- credentials and secret boundaries,
-- audit and usage metadata,
-- reliability and retries,
-- shared public/private contracts.
+Do not delay Hermes to solve hypothetical cross-harness abstractions.
 
-Each harness is integrated behind a runtime adapter.
+## Hosting strategy
 
-## First runtime
+Harness software and harness hosting are separate decisions.
 
-Hermes is the first implementation target because it already provides a general-purpose agent harness and Nous-hosted infrastructure. It is not the product boundary.
+For M1, the product operator controls the environment needed to make Hermes safely machine-accessible. The preferred starting point is the official Hermes runtime on a persistent cloud VM/container host with secure ingress.
 
-Future adapters may include OpenClaw, Pi, and other harnesses when doing so adds real user value.
+Third-party managed harness hosting may be used later if it exposes a supported machine API, authentication, lifecycle, persistence, and networking contract. It is never assumed to be required.
 
-## Two delivery paths
+Nous Portal may still provide Hermes model/tool authentication and provider access. Nous-managed Hermes Cloud is an optional hosting path, not the product architecture and not the M1 blocker.
 
-### Private/canary
+## Product boundary
 
-Used for owner dogfooding, protocol validation, staging, failure testing, and early end-to-end control.
+Each harness remains authoritative for its own runtime semantics and durable agent state. We reuse supported upstream capabilities rather than reproducing them.
 
-Temporary infrastructure is acceptable only when it sits behind production-shaped interfaces.
+This product may own shared consumer concerns such as:
 
-### Published/stable
+- onboarding and account UX;
+- user-to-harness/agent mapping;
+- simplified consumer interaction;
+- server-side credential mediation;
+- product permissions and entitlements where upstream controls are insufficient;
+- billing/product analytics when needed;
+- lifecycle automation only after M1 proves what must be automated;
+- future distribution-channel adapters.
 
-The user-facing ChatGPT app/plugin with production authentication, tenant isolation, reliability, safety, and publication requirements.
+## Runtime-operations boundary
 
-### Convergence rule
+Operating a harness on infrastructure we control is allowed and expected when required for secure machine access. That operational responsibility must not expand into a duplicate harness runtime.
 
-Private and published paths must converge on the same backend, domain model, adapters, task/session engine, policy layer, and tests before public release.
+We may own:
+
+- VM/container deployment configuration;
+- secure network ingress;
+- secret injection;
+- persistent volumes;
+- health/restart policy;
+- later provisioning automation if a product requirement proves it necessary.
+
+We do not own by default:
+
+- agent execution semantics;
+- generic task/run state machines;
+- mirrored session persistence;
+- long-term agent memory;
+- tool/skill/MCP orchestration;
+- approvals;
+- model routing;
+- harness-native session/run lifecycle.
+
+## Harness connector boundary
+
+A connector may handle authentication, endpoint discovery, capability discovery, request/response/stream transport, stable upstream references, and harness-specific errors.
+
+A connector must not become a parallel task engine, session store, memory system, scheduler, or model gateway.
+
+Capability differences are real. The product must not fabricate common behavior simply to make harnesses look identical.
+
+## MVP principle: prove the user journey
+
+For every proposed component ask:
+
+1. Does the harness already provide the behavior?
+2. Can we operate that behavior safely on infrastructure we control?
+3. What is the smallest product mediation needed for a normal user?
+
+The M1 success criterion is not a particular vendor cloud. It is a real end-to-end user journey.
+
+## V1 delivery path
+
+The first usable channel is a mobile-friendly web experience backed by Hermes. Vercel is the current consumer surface. Hermes runs behind a secure server-to-server path on operator-controlled infrastructure.
+
+## Future channels
+
+ChatGPT plugin / Apps SDK / MCP integration is V2+ work. It should consume the same product and harness connector boundaries rather than define them.
+
+## Development rules
+
+1. Verify upstream harness capabilities before designing replacements.
+2. Separate harness choice from hosting-provider choice.
+3. Keep harness/provider secrets server-side.
+4. Operate the minimum infrastructure needed for reliable machine access; hide it completely from users.
+5. Preserve upstream runtime semantics rather than inventing parallel task/session models.
+6. Add custom durable state only for product-owned concerns or verified upstream gaps.
+7. Keep product-facing code harness-neutral where practical and transport-specific behavior inside connectors.
+8. Do not generalize the connector beyond evidence from implemented harnesses.
+9. Hermes ships first; OpenClaw is next after the Hermes web MVP.
+10. Unsupported or unverified features remain explicit.
+11. Update `STATE.md` only with verified reality.
+12. Long-lived architecture changes require an ADR.
+13. ChatGPT-specific work stays in V2+ scope until explicitly started.
 
 ## Current milestone
 
-**M1 — Hermes Runtime Adapter**
+**M1 — Hermes Controlled-Runtime End-to-End**
 
-M1 is not complete. The immediate technical objective is to verify Hermes' actual remote-control/session capabilities and implement the first shared runtime adapter without depending on unverified internal APIs.
-
-See [`STATE.md`](STATE.md) for verified current status.
-
-## Next priorities
-
-1. Verify the real Hermes remote execution/session protocol and Nous Portal lifecycle capabilities.
-2. Implement the shared runtime-adapter contract plus Hermes adapter.
-3. Prove a programmatic end-to-end run: select/start runtime → submit task → observe state/result → continue/cancel/stop where supported.
-
-## Hard development rules
-
-1. One shared core; clients and harness adapters stay thin.
-2. Every substantial change maps to a roadmap milestone.
-3. Do not create private-only business logic that must later be rewritten for publication.
-4. Do not couple ChatGPT-facing code directly to Hermes/OpenClaw/Pi internal classes or file layouts.
-5. Long-running task/session state lives server-side.
-6. Credentials never transit model context or enter source control.
-7. Unsupported runtime capabilities fail explicitly; never fabricate support.
-8. A feature is complete only when its relevant observable/end-to-end behavior is verified.
-9. Update `STATE.md` whenever verified project reality materially changes.
-10. Long-lived architecture changes require an ADR under `docs/decisions/`.
-
-## Canonical documents
-
-Read in this order:
-
-1. `PROJECT.md` — product goal and development invariants.
-2. `STATE.md` — verified reality today.
-3. `ROADMAP.md` — sequencing and milestone gates.
-4. `ARCHITECTURE.md` — long-lived system boundaries.
-5. `docs/decisions/` — accepted architecture decisions.
-6. `docs/integrations/`, `docs/product/`, and `docs/implementation/` — detailed working material.
-
-When documents disagree, verified code/runtime behavior and `STATE.md` take precedence over older plans and conversation history.
+Prove that a user can open the protected web client on phone/desktop and complete a real Hermes task while Hermes runs persistently on infrastructure controlled by the product operator. The user must not manage or see the underlying runtime setup.

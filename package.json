@@ -1,0 +1,9 @@
+{
+  "name": "harness-consumer-layer-m1",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test": "node --test tests/web/*.test.js",
+    "check": "node --check lib/hermes.js && node --check api/status.js && node --check api/chat.js"
+  }
+}

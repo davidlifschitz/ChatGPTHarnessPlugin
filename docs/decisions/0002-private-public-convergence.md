@@ -1,21 +1,17 @@
 # ADR 0002 — Private and Published Paths Converge
 
-Status: Accepted
+Status: Partially superseded by ADR 0003
 
-## Context
+## Historical context
 
-The product needs a fast owner-only path for early testing and a production path for public ChatGPT distribution. If those are built as separate products, the private bridge becomes throwaway code and publication requires a rewrite.
+The original product plan assumed a private ChatGPT testing path and a public ChatGPT publication path over one shared custom backend.
 
-## Decision
+## Principle retained
 
-Treat private/canary and published/stable paths as deployment channels over one shared backend.
+Do not create throwaway channel-specific business logic when a shared product boundary exists. Experimental clients may differ from production clients, but durable product-owned identity, entitlement, and credential-mediation logic should not be duplicated unnecessarily.
 
-By M4 they must share runtime adapters, task/session services, persistence contracts, auth/tenant domain model, policy/approval logic, audit/usage model, tool/domain schemas, and automated tests.
+## Superseded portion
 
-Allowed differences include domains, client IDs, feature flags, rate limits, canary versions, and operator access.
+The specific ChatGPT private/public convergence milestones and the requirement for a product-owned task/session/runtime control plane are no longer active for V1.
 
-## Consequences
-
-- Private infrastructure may be simpler, but only behind production-shaped interfaces.
-- A feature normally reaches the private channel before stable publication.
-- No core capability is considered publish-ready if it exists only in a private client adapter.
+ADR 0003 makes the V1 product an upstream-first consumer layer over Hermes/Nous and defers ChatGPT to V2+.

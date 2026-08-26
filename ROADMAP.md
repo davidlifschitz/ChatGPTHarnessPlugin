@@ -1,120 +1,125 @@
-# ChatGPTHarnessPlugin — Roadmap
+# Harness Consumer Layer — Roadmap
 
-This roadmap sequences the shared product from architecture through a published first harness integration, then proves multi-harness portability.
+This roadmap follows three rules:
 
-## M0 — Product Architecture and Repository Foundation
+1. reuse each harness's supported runtime capabilities before building replacements;
+2. control the infrastructure boundary when required for safe machine access, while hiding it from users;
+3. ship one harness at a time rather than pre-generalizing.
 
-**Goal:** establish the product boundary, source of truth, roadmap, architecture rules, and development governance.
+Hermes is first. OpenClaw is second.
 
-**Gate:**
-- canonical product repo exists,
-- `PROJECT.md`, `STATE.md`, `ROADMAP.md`, `ARCHITECTURE.md` exist,
-- private/public convergence and adapter boundaries are documented,
-- product work no longer lives conceptually inside a harness source fork.
+## M0 — Product Reset
 
-## M1 — Hermes Runtime Adapter
+**Goal:** remove the generic agent-control-plane assumption while preserving a harness-neutral consumer product boundary.
 
-**Goal:** prove that the shared platform can control one real general-purpose harness through a stable adapter.
+**Gate:** complete. The product is a thin consumer layer; Hermes is the first harness; OpenClaw is next; ChatGPT is V2+; custom runtime semantics require evidence.
 
-**Work:**
-- verify actual Hermes remote execution/session interfaces,
-- verify Nous Portal/Hermes Cloud lifecycle capabilities,
-- define shared runtime capability model,
-- implement Hermes adapter,
-- normalize errors and unsupported capability behavior,
-- prove task start/status/result and lifecycle operations that the runtime truly supports.
+## M1 — Hermes Controlled-Runtime End-to-End
 
-**Gate:** a programmatic client can invoke a real Hermes runtime through the shared adapter boundary and observe a real result without relying on fabricated or unverified APIs.
-
-## M2 — Private ChatGPT Control
-
-**Goal:** control Hermes from ChatGPT through the shared control plane.
+**Goal:** prove that a real user can use a real Hermes agent from a browser/phone while the product operator—not the user—owns the runtime infrastructure boundary.
 
 **Work:**
-- implement the shared task/session service,
-- expose a minimal MCP/Apps SDK-compatible tool contract,
-- support task start/status/result/continue/cancel/approval where supported,
-- deploy a private/canary environment,
-- exercise failure cases and runtime restarts.
+- select the smallest practical cloud VM/container host;
+- deploy the official Hermes runtime with persistent Hermes-native state;
+- authenticate/configure Hermes providers through supported upstream mechanisms, including Nous Portal where useful;
+- enable the Hermes API server with a server-side bearer key;
+- expose it through a restricted machine-to-machine HTTPS path; do not expose the raw agent port openly;
+- point the existing protected Vercel Preview at that machine origin;
+- verify `/v1/capabilities`, `/v1/models`, and `/api/sessions`;
+- run exactly one minimal real turn, then one tool-capable task;
+- verify session continuity and restart persistence;
+- verify desktop and phone UX;
+- record remaining product/security gaps.
 
-**Gate:** ChatGPT → product MCP/API → control plane → Hermes → result works end-to-end in the private environment.
+**Gate:** a protected deployed browser client completes a real Hermes task end-to-end on phone and desktop; expected Hermes state survives restart; the user sees no VPS/container/key/tunnel administration.
 
-## M3 — Production Identity and Isolation
+Managed Hermes Cloud is not required for this gate. It may be revisited if Nous exposes a supported machine-ingress contract.
 
-**Goal:** make the backend production-shaped for multiple users/tenants.
+## M2 — Minimal Consumer Product Layer
 
-**Work:**
-- user and tenant domain model,
-- production authentication,
-- Nous account/org linkage where applicable,
-- tenant-scoped runtime/session/task ownership,
-- policy/approval enforcement,
-- secret storage boundary,
-- audit and usage events.
+**Goal:** implement only the consumer gaps exposed by M1.
 
-**Gate:** two test identities cannot access each other's runtimes, tasks, sessions, approvals, or credentials.
+Potential work, only when M1 proves it is needed:
+- consumer sign-in/onboarding;
+- user-to-harness/runtime mapping;
+- server-side credential mediation;
+- simplified agent creation/selection;
+- product entitlements;
+- hiding harness administration;
+- light frontend customization;
+- a minimal Hermes connector interface;
+- minimal runtime lifecycle automation for the single-harness product.
 
-## M4 — Private/Public Convergence
+**Gate:** each custom component corresponds to a documented user/upstream gap, normal users never handle harness credentials/infrastructure, and Hermes transport details stay isolated.
 
-**Goal:** eliminate architectural divergence between dogfood and publish paths.
+## M3 — Multi-User Isolation and Provisioning
 
-**Private channel becomes:** staging, canary, admin, protocol testing.
-
-**Public channel becomes:** stable production distribution.
-
-**Shared by both:**
-- control-plane services,
-- runtime adapters,
-- task/session engine,
-- auth/tenant model,
-- persistence contracts,
-- policy/approval layer,
-- audit/usage model,
-- MCP/domain schemas,
-- automated tests.
-
-**Gate:** no core business logic exists only in the private or public client layer.
-
-## M5 — Release Candidate
-
-**Goal:** harden the shared product for public use.
+**Goal:** safely support more than one unrelated consumer.
 
 **Work:**
-- retries, idempotency, timeouts, cancellation, health checks,
-- rate limits and abuse controls,
-- observability and safe logging,
-- production error UX,
-- privacy/retention documentation,
-- security review,
-- regression and E2E suites,
-- deployment and rollback procedures.
+- choose the supported Hermes isolation boundary based on real testing (profiles, dedicated runtimes, session keys, or a combination);
+- automate user-to-runtime/agent provisioning where necessary;
+- enforce authorization before proxying to Hermes;
+- verify session/memory/credential isolation;
+- define deletion/offboarding and resource cleanup;
+- establish resource/cost limits.
 
-**Gate:** the first eight core journeys work reliably: connect, list/select runtime, start, submit task, inspect progress/result, continue, cancel, and stop/destroy where supported.
+**Gate:** two test users cannot access each other's agent, sessions, memory, credentials, filesystem/tool context, or administrative controls.
 
-## M6 — Publish First Harness Plugin
+## M4 — Hermes Production Web MVP
 
-**Goal:** publish the first supported ChatGPT harness integration, initially Hermes.
+**Goal:** ship a stable mobile-friendly public product using Hermes as the first harness.
 
 **Work:**
-- production ChatGPT app/plugin package,
-- metadata and onboarding,
-- OAuth/domain configuration,
-- submission tests and negative tests,
-- privacy/terms/support material,
-- directory submission and review fixes.
+- production HTTPS deployment;
+- safe runtime/secret management;
+- reliable harness process supervision and persistent storage;
+- rate/abuse controls where required;
+- observability without leaking sensitive content/secrets;
+- onboarding/error UX;
+- privacy/retention documentation;
+- rollback/recovery procedures;
+- real-Hermes regression/E2E coverage;
+- repeated desktop/phone testing.
 
-**Gate:** a normal supported user can install/connect the published product and use Hermes without understanding the underlying infrastructure.
+**Gate:** a supported user can sign up/connect, open the product on a phone, use a Hermes-backed agent, resume work, and use tools without knowing where or how Hermes is hosted.
 
-## M7 — Prove Second Harness Adapter
+## M5 — OpenClaw Second Harness
 
-**Goal:** prove the architecture is genuinely harness-agnostic.
+**Goal:** add OpenClaw as the second useful harness and validate the connector boundary.
 
-**Candidate:** OpenClaw, Pi, or another harness selected based on current capabilities and user value.
+**Work:**
+- verify current OpenClaw runtime/programmatic surfaces;
+- deploy it on an operator-controlled runtime boundary appropriate to OpenClaw;
+- document auth, lifecycle, state, streaming, tools, and isolation without assuming Hermes equivalence;
+- implement the smallest connector needed by the existing consumer product;
+- revise the connector where real differences require it;
+- keep OpenClaw-native durable state upstream;
+- verify the same core user journey where supported.
 
-**Rule:** do not build the second adapter merely to satisfy abstraction aesthetics. The second harness must provide a meaningful capability or deployment advantage.
+**Gate:** a user can use an OpenClaw-backed agent through the same product without a forked account/frontend system or duplicated generic control plane.
 
-**Gate:** the second harness works through the same task/session/control-plane contracts with no forked product backend.
+## M6 — Product Economics and Growth
 
-## Development sequencing rule
+**Goal:** add commercial and lifecycle systems after the product and second-harness architecture are demonstrated.
 
-Do not expand horizontally into many harnesses before M6 unless a second harness is necessary to resolve a concrete product requirement. Hermes-first is an implementation sequence, not a permanent coupling.
+Possible work:
+- billing/subscriptions;
+- usage/entitlements;
+- product analytics;
+- referral/onboarding improvements;
+- lifecycle automation and capacity orchestration based on measured usage.
+
+**Gate:** economics and lifecycle behavior are measurable and users never manage harness infrastructure manually.
+
+## V2+ — Additional Distribution Channels
+
+ChatGPT plugin / Apps SDK / MCP is a future client channel, not a core architecture dependency. Other channels may include native mobile, Telegram, or partner integrations.
+
+## Additional harnesses
+
+After Hermes and OpenClaw, add another harness only for concrete capability, deployment, cost, or distribution value.
+
+## Sequencing rule
+
+**Prove one operator-controlled Hermes user journey first. Automate only what that journey proves necessary. Then add OpenClaw and generalize from evidence.**

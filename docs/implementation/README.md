@@ -4,16 +4,16 @@ Detailed implementation plans live here and must map to a roadmap milestone.
 
 Each plan should state:
 
-- milestone and capability advanced,
-- shared/private/public surface,
-- files/components to change,
-- external capability assumptions that must be verified,
-- acceptance criteria,
-- validation commands and end-to-end checks,
-- temporary infrastructure/debt and its removal path,
-- security implications,
+- milestone and capability advanced;
+- exact upstream Hermes/Nous capability being consumed;
+- the verified product gap, if custom code is proposed;
+- files/components to change;
+- acceptance criteria;
+- validation commands and real-Hermes end-to-end checks;
+- security implications;
+- temporary infrastructure/debt and its removal path;
 - remaining blockers.
 
-Plans are working artifacts. They do not override verified runtime behavior, accepted ADRs, `ARCHITECTURE.md`, or `STATE.md`.
+Plans are working artifacts. They do not override observed runtime behavior, authoritative upstream documentation, accepted ADRs, `ARCHITECTURE.md`, or `STATE.md`.
 
-The first implementation plan should cover M1: verification of the current Hermes remote-control/session surface and the minimal shared runtime-adapter contract.
+The first implementation work is M1: verify the real Hermes Cloud API-server path and connect the least-custom viable browser frontend to it. Do not begin by scaffolding a generic control plane.
