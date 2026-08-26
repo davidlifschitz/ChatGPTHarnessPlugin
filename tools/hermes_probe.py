@@ -88,8 +88,24 @@ class HermesProbe:
     def get_json(self, path: str) -> Any:
         return self._request_json("GET", path)
 
+    def models(self) -> Any:
+        return self.get_json("/v1/models")
+
+    def default_model(self) -> str:
+        payload = self.models()
+        if isinstance(payload, dict):
+            data = payload.get("data")
+            if isinstance(data, list) and data:
+                first = data[0]
+                if isinstance(first, dict):
+                    model_id = first.get("id")
+                    if isinstance(model_id, str) and model_id.strip():
+                        return model_id
+        raise ProbeError("Hermes /v1/models did not advertise a usable model id")
+
     def read_only_report(self) -> dict[str, Any]:
         capabilities = self.get_json("/v1/capabilities")
+        models = self.models()
         try:
             sessions = self.get_json("/api/sessions")
             sessions_supported = True
@@ -102,18 +118,20 @@ class HermesProbe:
         return {
             "base_url": self.base_url,
             "capabilities": capabilities,
+            "models": models,
             "sessions_supported": sessions_supported,
             "sessions": sessions,
         }
 
-    def chat(self, message: str) -> Any:
+    def chat(self, message: str, *, model: str | None = None) -> Any:
         if not message.strip():
             raise ValueError("message must not be empty")
+        selected_model = model or self.default_model()
         return self._request_json(
             "POST",
             "/v1/chat/completions",
             {
-                "model": "hermes-agent",
+                "model": selected_model,
                 "messages": [{"role": "user", "content": message}],
             },
         )
@@ -157,9 +175,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = probe.read_only_report()
         print(json.dumps(report, indent=2, sort_keys=True))
         if args.chat is not None:
-            response = probe.chat(args.chat)
+            model = None
+            models = report.get("models")
+            if isinstance(models, dict):
+                data = models.get("data")
+                if isinstance(data, list) and data and isinstance(data[0], dict):
+                    candidate = data[0].get("id")
+                    if isinstance(candidate, str) and candidate.strip():
+                        model = candidate
+            response = probe.chat(args.chat, model=model)
             print(json.dumps({"chat": response}, indent=2, sort_keys=True))
     except (ProbeError, ValueError) as exc:
+        # ProbeError is already sanitized; ValueError only contains local validation text.
         print(f"Probe failed: {exc}", file=sys.stderr)
         return 1
     return 0
