@@ -1,193 +1,140 @@
-# ChatGPTHarnessPlugin — Architecture
+# Hermes Consumer Layer — Architecture
 
-This document contains the long-lived architecture constraints for the product. For current implementation reality, see `STATE.md`. For sequencing, see `ROADMAP.md`.
+This document contains the long-lived architecture constraints for the consumer product. For verified reality see `STATE.md`; for sequencing see `ROADMAP.md`.
 
 ## Objective
 
-Provide a stable, cloud-hosted control plane that lets ChatGPT delegate work to general-purpose agent harnesses without coupling the product to one harness, one hosting provider, one developer-only path, or harness-internal classes/file layouts.
+Provide a simple consumer experience over Hermes without duplicating capabilities that Nous Research already maintains.
 
 ## System shape
 
 ```text
-ChatGPT web / mobile / desktop / Codex
-                  |
-                  | MCP / HTTPS
-                  v
-          Harness Control Plane
-  ┌──────────────────────────────────┐
-  │ authentication / tenants         │
-  │ runtime registry                 │
-  │ task router                      │
-  │ session manager                  │
-  │ policy / approvals               │
-  │ persistence                      │
-  │ audit / usage                    │
-  │ reliability / observability      │
-  └───────────────┬──────────────────┘
-                  |
-            Runtime Adapter
-         ┌────────┼────────┐
-         v        v        v
-       Hermes  OpenClaw    Pi   ...
-         |
-         ├─ Nous Portal / Hermes Cloud lifecycle where useful
-         └─ Hermes execution/session transport
+mobile / desktop browser
+          |
+          v
+Consumer Web Surface
+          |
+          v
+Minimal Product Boundary
+  - authentication/onboarding, if needed
+  - user -> Hermes mapping
+  - secret mediation
+  - product entitlements
+          |
+          +-----------------------------+
+          |                             |
+          v                             v
+Hermes API Server                Nous Portal / Cloud
+chat / runs / sessions           hosting / lifecycle
+capabilities / streaming         account/org operations
+          |
+          v
+Hermes Agent
+models / tools / skills / memory / execution
 ```
 
-## Core boundaries
+## Upstream-first boundary
 
-### ChatGPT client boundary
+The default architecture is to call supported Hermes/Nous interfaces directly or through the smallest safe server-side proxy.
 
-ChatGPT receives the tool contracts and user-visible state needed to operate the product. It must not own durable runtime state, credentials, tenant authorization, routing, or infrastructure secrets.
+The product must not create parallel implementations of upstream behavior merely to normalize it into our own domain model.
 
-### Control-plane boundary
+Before adding a service, table, queue, state machine, adapter, or API, document the required user behavior and the upstream gap preventing Hermes/Nous from satisfying it.
 
-The control plane owns durable product state and authorization. Domain operations should remain harness-neutral where practical:
+## Hermes execution boundary
 
-```text
-runtimes.list
-runtimes.get
-runtimes.create
-runtimes.start
-runtimes.stop
-runtimes.restart
-runtimes.destroy
+Hermes is the execution system. Current supported programmatic surfaces include:
 
-sessions.list
-sessions.get
-sessions.create
+- OpenAI-compatible chat completions;
+- Responses API;
+- asynchronous runs and lifecycle events;
+- approvals, steering, and stop controls;
+- session CRUD/history/fork/chat/stream operations;
+- machine-readable capabilities;
+- skill/toolset discovery;
+- stable session-key scoping for multi-user memory.
 
-tasks.start
-tasks.get
-tasks.result
-tasks.continue
-tasks.cancel
+We preserve those semantics instead of inventing a second task/session model.
 
-approvals.list
-approvals.respond
-```
+Authoritative upstream references:
 
-The ChatGPT-facing MCP surface may expose a smaller, user-oriented subset.
+- https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
+- https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration
 
-### Runtime adapter boundary
+## Nous Portal / Hermes Cloud boundary
 
-Each harness implements a capability-driven contract. Initial target shape:
+Nous owns subscription-backed model/tool access and hosted Hermes lifecycle where supported. Portal MCP currently provides authenticated organization-scoped discovery and lifecycle actions for Hermes Cloud instances.
 
-```text
-capabilities()
-health()
-start_run(request)
-get_run(run_id)
-get_result(run_id)
-continue_session(session_id, instruction)
-approve(run_id, approval)
-stop_run(run_id)
-```
+The product should consume supported lifecycle capabilities rather than maintain an independent cloud scheduler/provisioner unless a verified public-product requirement cannot be met upstream.
 
-Lifecycle provisioning may be a separate adapter when the harness execution transport and hosting lifecycle are different systems.
+Reference:
 
-A harness may not support every capability. Unsupported operations must return explicit normalized errors rather than being simulated or fabricated.
+- https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
 
-## Hermes adapter
+## Consumer frontend boundary
 
-Hermes is adapter #1. The adapter may combine:
+V1 should begin with the least custom frontend capable of proving the real experience. Hermes explicitly supports OpenAI-compatible frontends such as Open WebUI, LobeChat, LibreChat, NextChat, and ChatBox.
 
-- Nous Portal/Hermes Cloud for account/org-aware discovery and lifecycle where supported,
-- the supported Hermes remote runtime/session transport for actual task execution,
-- local/self-hosted Hermes connection profiles where useful.
+An off-the-shelf frontend is a replaceable client, not the product architecture. We customize or replace it only when testing identifies meaningful UX/product gaps.
 
-The rest of the product must not depend on Hermes-specific endpoint names, Python classes, config paths, or CLI file structure.
+The consumer surface must hide infrastructure/admin concepts such as raw API keys, model-provider setup, MCP configuration, environment variables, and system operations unless a future advanced mode intentionally exposes them.
 
-## Other harnesses
+## Identity and isolation
 
-OpenClaw, Pi, and future harnesses should be added only when there is concrete value. They implement the same domain intent through their own adapter-specific capability maps.
+Do not assume we need an independent tenant system until the M1/M2 experiments determine the required upstream isolation model.
 
-The architecture does not require identical harness semantics. The capability model should expose meaningful differences instead of forcing false equivalence.
+Possible supported boundaries include:
 
-## Long-running tasks
+- dedicated Hermes Cloud instance per user/account;
+- Hermes profiles with separate config/memory/API server credentials;
+- stable `X-Hermes-Session-Key` values for user/channel memory scoping.
 
-Agent work is represented by durable server-side task/run state. A task submission should return a stable identifier quickly:
+The production choice must be verified against real cross-user isolation requirements before public release.
 
-```json
-{
-  "task_id": "tsk_123",
-  "state": "running"
-}
-```
-
-Clients inspect, continue, approve, or cancel work through explicit operations. Arbitrary agent work must not require one ChatGPT tool invocation or HTTP connection to remain open for its full duration.
-
-## Identity and tenancy
-
-Production-owned state is tenant scoped:
-
-```text
-user
-→ tenant / external organization linkage
-→ runtime connection
-→ session
-→ task
-→ approval / audit / usage
-```
-
-Tenant identity is derived from verified authentication, never trusted from a client-provided tool argument.
+Client-provided identifiers are never sufficient authorization by themselves.
 
 ## Secrets
 
-Secrets are stored and used server-side.
+Secrets remain server-side.
 
 Never:
 
-- commit credentials,
-- place tokens in prompts,
-- return tokens in tool results,
-- log raw bearer/refresh tokens,
-- trust client-provided tenant IDs as authorization.
+- ship Hermes API keys to browser JavaScript;
+- commit Portal refresh/access tokens;
+- place credentials in model prompts;
+- return credentials in API/tool results;
+- log raw bearer/refresh tokens.
 
-Private development may use simpler authentication only behind the same service boundary so production auth can replace it without rewriting runtime/task logic.
+If an off-the-shelf frontend requires a secret in browser-accessible configuration, insert a server-side mediation layer rather than accepting that exposure.
 
-## Private/public convergence
+## Durable state
 
-Private and public delivery paths are deployment/configuration channels, not separate products.
+Prefer upstream Hermes state whenever it is authoritative for agent behavior: sessions, messages, runs, memory, approvals, skills, and capabilities.
 
-By M4 they share runtime adapters, task/session engine, persistence contracts, policy/approval logic, auth/tenant domain model, audit/usage model, tool schemas, and tests.
+Our database should contain only product-owned state that cannot live upstream cleanly, for example consumer identity, instance mapping, entitlements, billing references, or product preferences.
 
-Allowed differences include domains, client IDs, configuration, rate limits, feature flags, canary versions, and operational access.
+Do not mirror Hermes state into a second database without a specific query, reliability, or product requirement.
 
-## Function-agnostic model
+## Errors and capability detection
 
-The product must not assume that an agent is a coding agent. Tasks may represent software development, research, marketing, SEO, sales, browser operations, productivity, analysis, or other work.
+Clients should use Hermes' advertised capabilities and actual HTTP responses. Do not pretend unsupported features exist.
 
-Harness-specific capabilities can be richer than the common contract, but the shared product model should remain useful without hardcoding one occupational role.
+Our product layer may translate upstream failures into user-friendly UX, but diagnostics should retain enough upstream context for operators without leaking secrets.
 
-## Infrastructure boundary
+## Future channels
 
-Cloudflare or another edge provider may supply DNS, TLS, tunneling, WAF, rate limiting, and origin protection. Edge infrastructure is not the control plane and should be replaceable.
+ChatGPT plugin/Apps SDK/MCP is V2+. It should become another client of the minimal product/account boundary and/or supported Hermes APIs. It must not cause V1 to introduce ChatGPT-specific domain state.
 
-Likewise, a VPS/container host is a deployment target rather than part of the product domain model.
-
-## Normalized errors
-
-Prefer stable product errors over leaking raw upstream details. Examples:
-
-- `RUNTIME_UNAVAILABLE`
-- `AUTH_REQUIRED`
-- `AWAITING_APPROVAL`
-- `POLICY_DENIED`
-- `PLAN_LIMIT_REACHED`
-- `INVALID_RUNTIME_CONFIG`
-- `UNSUPPORTED_CAPABILITY`
-- `RUNTIME_ERROR`
-
-Adapter-specific details may be attached for diagnostics without exposing secrets.
+Additional harnesses are also out of scope until a concrete product requirement justifies them.
 
 ## Source-of-truth hierarchy
 
 When artifacts disagree:
 
-1. verified code/runtime behavior,
-2. `STATE.md`,
-3. accepted ADRs and this architecture document,
-4. `ROADMAP.md` / `PROJECT.md`,
-5. detailed implementation plans,
-6. conversation history or memory.
+1. observed behavior against the real deployed integration;
+2. authoritative current Hermes/Nous documentation;
+3. `STATE.md`;
+4. accepted current ADRs and this architecture document;
+5. `ROADMAP.md` / `PROJECT.md`;
+6. implementation plans;
+7. older conversation history.
