@@ -49,15 +49,18 @@ Authoritative references:
 
 ## Verified Vercel manual-test deployment
 
-- Vercel project `hermes-consumer-layer-m1` exists with deployment `dpl_Zy1Xb2bxSGgswJE61c15HDJpmWPA` in `READY` state.
-- The deployment is reachable at `https://hermes-consumer-layer-m1.vercel.app/` and returns the M1 browser test page with HTTP 200.
-- `GET /api/status` executes the serverless route and currently returns HTTP 503 with the expected explicit `Hermes is not configured` response because no live Hermes endpoint/key has been attached.
-- The deployment build completed without build errors, and no Vercel runtime error cluster is currently reported for the project.
-- The deployment is currently reachable without Vercel Authentication. Do not attach a live tool-capable Hermes credential until deployment protection or another equivalent access boundary is enabled.
-- No Hermes credential or Hermes base URL is present in the browser HTML served by the deployment.
+- Vercel project `hermes-consumer-layer-m1` exists.
+- Its first deployment, `dpl_Zy1Xb2bxSGgswJE61c15HDJpmWPA`, is `READY` and serves the production alias `https://hermes-consumer-layer-m1.vercel.app/`. It is intentionally unconfigured for Hermes and is publicly reachable.
+- The production alias returns the M1 browser test page with HTTP 200; `GET /api/status` executes the serverless route and returns HTTP 503 with the expected explicit `Hermes is not configured` response because no live Hermes endpoint/key has been attached.
+- A second non-production manual-test deployment, `dpl_26LFhz5VrmpgJWtWQQFz94YjiqRF`, is `READY` at `https://hermes-consumer-layer-m1-pixu1t9cg-davidlifschitzs-projects.vercel.app/` and has no production alias.
+- The second deployment serves the same M1 test surface and is fetchable through the authenticated Vercel connector. Its anonymous Deployment Protection behavior has not yet been independently verified.
+- Vercel build logs for the deployed surface show a completed build with no build errors, and no runtime error cluster is currently reported for the project.
+- No Hermes credential or Hermes base URL is present in the browser HTML served by either deployment.
+- No live Hermes credential is attached to Vercel yet.
 
 ## Not yet verified / not yet implemented
 
+- Vercel Authentication/Deployment Protection on the non-production manual-test URL from an anonymous browser.
 - The exact public/private network endpoint and authentication mechanism available from the user's existing Hermes Cloud instance for the Hermes API server.
 - Whether that Hermes Cloud instance currently has the API server enabled, bound to a reachable interface, and exposed through a stable HTTPS ingress.
 - A successful run of `tools/hermes_probe.py` against the real Hermes Cloud instance.
@@ -75,11 +78,11 @@ Authoritative references:
 
 ## Current critical path
 
-1. Enable an access boundary on the Vercel manual-test deployment before attaching any live Hermes credential.
+1. Confirm Vercel Authentication/Deployment Protection on the non-production manual-test deployment before attaching any live Hermes credential.
 2. Determine the real Hermes API-server URL/network path for the existing Hermes Cloud instance without exposing credentials.
 3. Run the read-only Hermes probe against it.
 4. Run one explicit real test turn after the read-only checks pass.
-5. Configure server-only `HERMES_BASE_URL` and `HERMES_API_KEY` in Vercel and redeploy the manual-test surface.
+5. Configure server-only `HERMES_BASE_URL` and `HERMES_API_KEY` for the Vercel Preview environment only, then redeploy the manual-test surface.
 6. Manually test the deployed flow from desktop and phone.
 7. Verify chat, streaming/tool progress, session resume, and per-user memory/session isolation.
 8. Record exactly which consumer requirements remain unmet.
