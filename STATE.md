@@ -45,25 +45,30 @@ Authoritative references:
 - `python tools/hermes_probe.py --help` and Python bytecode compilation succeed in the local validation environment.
 - The branch contains a dependency-free Vercel M1 browser test surface: a static mobile-friendly page, server-only `/api/status` and `/api/chat` routes, and a thin Hermes HTTP connector that discovers the advertised model instead of hardcoding it.
 - The web test suite passes 10 Node tests covering server-only bearer auth, model discovery, API route behavior, configuration errors, and a guard that browser code contains no Hermes server configuration or bearer handling.
-- GitHub Actions workflow `M1 tests` passes on commit `a6788c998a7b9c02611d2103fedcabae43b565b8`, running the existing Python checks plus the new Node web-surface tests and syntax checks.
+- GitHub Actions workflow `M1 tests` passes on branch head `91cb70681b4fcbd9882010ac659f8fb913877eb6`.
 
 ## Verified Vercel manual-test deployment
 
 - Vercel project `hermes-consumer-layer-m1` exists.
-- Its first deployment, `dpl_Zy1Xb2bxSGgswJE61c15HDJpmWPA`, is `READY` and serves the production alias `https://hermes-consumer-layer-m1.vercel.app/`. It is intentionally unconfigured for Hermes and is publicly reachable.
-- The production alias returns the M1 browser test page with HTTP 200; `GET /api/status` executes the serverless route and returns HTTP 503 with the expected explicit `Hermes is not configured` response because no live Hermes endpoint/key has been attached.
-- A second non-production manual-test deployment, `dpl_26LFhz5VrmpgJWtWQQFz94YjiqRF`, is `READY` at `https://hermes-consumer-layer-m1-pixu1t9cg-davidlifschitzs-projects.vercel.app/` and has no production alias.
-- The second deployment serves the same M1 test surface and is fetchable through the authenticated Vercel connector. Its anonymous Deployment Protection behavior has not yet been independently verified.
-- Vercel build logs for the deployed surface show a completed build with no build errors, and no runtime error cluster is currently reported for the project.
-- No Hermes credential or Hermes base URL is present in the browser HTML served by either deployment.
-- No live Hermes credential is attached to Vercel yet.
+- Its first deployment, `dpl_Zy1Xb2bxSGgswJE61c15HDJpmWPA`, is `READY` and serves the production alias `https://hermes-consumer-layer-m1.vercel.app/`. Production remains intentionally unconfigured for Hermes.
+- The production alias previously returned the M1 browser test page with HTTP 200; `GET /api/status` returned the expected explicit `Hermes is not configured` response when no live Hermes endpoint/key was attached there.
+- A dedicated non-production manual-test deployment, `dpl_26LFhz5VrmpgJWtWQQFz94YjiqRF`, remains `READY` with no production alias.
+- A newer redeployed non-production preview, `dpl_9FvYEtyQKyCGVjMvQMzRkupEvFGT`, is `READY` at `https://hermes-consumer-layer-m1-d69ckswcv-davidlifschitzs-projects.vercel.app/` and has no production alias.
+- Vercel Authentication / Deployment Protection is now observed on that preview: an unauthenticated request to `/api/status` is redirected to Vercel SSO instead of reaching the application.
+- Runtime logs for `dpl_9FvYEtyQKyCGVjMvQMzRkupEvFGT` show three executed `GET /api/status` requests at 2026-08-26 16:06 UTC, all returning HTTP 503 from the serverless route.
+- No runtime error cluster is reported for `/api/status`; the current application intentionally sanitizes upstream HTTP failures and therefore the Vercel logs do not prove the exact upstream 503 body.
+- The latest observed status result is therefore still blocked at the Hermes/upstream health boundary. A successful Hermes connection has not yet been observed from Vercel.
+- No Hermes credential or Hermes base URL is present in browser-served HTML.
 
 ## Not yet verified / not yet implemented
 
-- Vercel Authentication/Deployment Protection on the non-production manual-test URL from an anonymous browser.
-- The exact public/private network endpoint and authentication mechanism available from the user's existing Hermes Cloud instance for the Hermes API server.
-- Whether that Hermes Cloud instance currently has the API server enabled, bound to a reachable interface, and exposed through a stable HTTPS ingress.
+- Current Hermes Cloud lifecycle status for the existing agent after the previously observed `STOPPING` state.
+- Whether the previous upstream error `503: Auth provider 'nous' unreachable` is still the exact current Hermes provider error; the Vercel route currently exposes only the sanitized upstream HTTP status.
 - A successful run of `tools/hermes_probe.py` against the real Hermes Cloud instance.
+- Successful reads of `/v1/capabilities`, `/v1/models`, and `/api/sessions` against the real instance in this M1 verification pass.
+- One explicit real Hermes test turn returning `probe-ok`.
+- A successful protected-preview `/api/status` response.
+- A successful protected-preview `/api/chat` request.
 - A real browser -> Vercel -> Hermes test turn.
 - Streaming/tool progress through the browser test surface.
 - Explicit session creation/resume from the browser test surface.
@@ -78,16 +83,15 @@ Authoritative references:
 
 ## Current critical path
 
-1. Confirm Vercel Authentication/Deployment Protection on the non-production manual-test deployment before attaching any live Hermes credential.
-2. Determine the real Hermes API-server URL/network path for the existing Hermes Cloud instance without exposing credentials.
-3. Run the read-only Hermes probe against it.
-4. Run one explicit real test turn after the read-only checks pass.
-5. Configure server-only `HERMES_BASE_URL` and `HERMES_API_KEY` for the Vercel Preview environment only, then redeploy the manual-test surface.
-6. Manually test the deployed flow from desktop and phone.
-7. Verify chat, streaming/tool progress, session resume, and per-user memory/session isolation.
-8. Record exactly which consumer requirements remain unmet.
-9. Build only the minimum shared product layer needed for those unmet requirements.
-10. Ship the Hermes production web MVP before beginning the OpenClaw connector milestone.
+1. Confirm the existing Hermes Cloud agent is `RUNNING`/healthy and that the Nous inference provider is reachable, without creating or restarting another instance.
+2. Once healthy, run the existing read-only probe against `/v1/capabilities`, `/v1/models`, and `/api/sessions`.
+3. Run exactly one explicit real test turn after the read-only checks pass.
+4. Verify the protected Vercel Preview `/api/status` and then one minimal `/api/chat` request.
+5. Manually test the deployed flow from desktop and phone only after server-side checks pass.
+6. Verify chat, streaming/tool progress, session resume, and per-user memory/session isolation.
+7. Record exactly which consumer requirements remain unmet.
+8. Build only the minimum shared product layer needed for those unmet requirements.
+9. Ship the Hermes production web MVP before beginning the OpenClaw connector milestone.
 
 ## State-update rule
 
