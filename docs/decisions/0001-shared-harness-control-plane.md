@@ -1,24 +1,15 @@
 # ADR 0001 — Shared Harness Control Plane
 
-Status: Accepted
+Status: Superseded by ADR 0003
 
-## Context
+## Historical context
 
-The product must support ChatGPT clients across private/canary and published/stable delivery paths while allowing different underlying agent harnesses.
+The original product concept assumed ChatGPT would be the primary client and that the product needed to normalize multiple agent harnesses behind one shared control plane.
 
-Building separate backends for each client or harness would create duplicated auth, task, session, policy, and reliability logic and make publication a rewrite of private prototyping.
+That design assigned identity, tenant authorization, runtime routing, durable task/session state, policy/approvals, audit/usage metadata, and normalized errors to a product-owned backend.
 
-## Decision
+## Supersession
 
-Use one shared Harness Control Plane as the product backend.
+ADR 0003 replaces this architecture for V1 after verification that current Hermes/Nous surfaces already provide substantial execution, run, session, approval, memory-scoping, and cloud-lifecycle functionality.
 
-ChatGPT surfaces are clients of that control plane. Harnesses such as Hermes, OpenClaw, and Pi integrate through adapters. Hosting/lifecycle systems such as Nous Portal are integrations behind adapter boundaries.
-
-The control plane owns identity, tenant authorization, runtime routing, durable task/session state, policy/approvals, audit/usage metadata, and normalized errors.
-
-## Consequences
-
-- Private and public delivery paths must not contain independent business logic.
-- Harness-specific APIs remain inside adapters.
-- A second harness can be added without creating a second product backend.
-- Private shortcuts are allowed only behind interfaces that can survive production auth/deployment changes.
+The general lesson that client-specific business logic should not be duplicated remains useful. The specific decision to build a generic Harness Control Plane is no longer active.
