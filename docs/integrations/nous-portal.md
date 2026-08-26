@@ -1,20 +1,38 @@
 # Nous Portal / Hermes Cloud Integration
 
-Nous Portal is an integration for Hermes Cloud account/org-aware discovery and lifecycle where supported.
+Nous Portal is the upstream subscription, authentication, model/tool gateway, and Hermes Cloud management surface used by V1.
 
-## Boundary
+## Verified capabilities
 
-Portal lifecycle operations should sit behind a dedicated adapter rather than define the whole product model.
+Current official documentation verifies that Portal OAuth can configure Hermes model/tool access and that the Portal MCP server can operate against the authenticated user's organization.
 
-Likely responsibilities include:
+The Portal MCP currently documents:
 
-- user/org-aware Hermes Cloud discovery,
-- create/start/stop/restart/destroy lifecycle operations where supported,
-- status and cost metadata,
-- official OAuth linkage.
+- list/get/status/cost-estimate for Hermes Cloud agents;
+- create;
+- start/stop/restart;
+- destroy;
+- update environment/image.
 
-Task/session execution may use a different Hermes runtime transport. Do not assume Portal lifecycle control is equivalent to conversational task delegation.
+Membership is re-checked against the authenticated Portal organization for calls through that MCP surface.
+
+## Product boundary
+
+Use Portal/Hermes Cloud for hosting and lifecycle wherever the supported surface satisfies the product requirement.
+
+Do not create an independent cloud scheduler or runtime-registry abstraction unless a verified consumer requirement cannot be expressed through upstream behavior.
+
+Conversational execution remains a Hermes API-server concern; Portal lifecycle control and Hermes execution are related upstream surfaces, not one invented product API that we need to normalize prematurely.
+
+## M1 question
+
+We still need to verify how a Hermes Cloud instance exposes the Hermes API server to an external server-side frontend/proxy and which authentication/network controls are available on the existing deployment.
 
 ## Security
 
-OAuth/access/refresh tokens stay server-side and never enter prompts, tool arguments, source control, or model-visible logs/results.
+OAuth/access/refresh tokens and Hermes API keys stay server-side and never enter prompts, browser bundles, source control, or model-visible logs/results.
+
+## Authoritative references
+
+- https://hermes-agent.nousresearch.com/docs/integrations/nous-portal
+- https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
