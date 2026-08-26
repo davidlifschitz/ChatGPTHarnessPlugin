@@ -1,52 +1,77 @@
-# Hermes Consumer Layer
+# Harness Consumer Layer
 
-A thin, consumer-facing product layer over Nous Research's existing Hermes Agent and Hermes Cloud infrastructure.
+A thin, consumer-facing product layer over capable general-purpose agent harnesses.
+
+**Hermes is the first MVP harness, not the product identity.** It is first because Nous Research already provides hosted Hermes infrastructure and supported APIs that make it the fastest path to a real consumer MVP. **OpenClaw is the planned second harness.**
 
 ## Goal
 
-Make Hermes usable by normal people from a phone or browser without requiring them to understand terminals, MCP, API keys, model providers, cloud instances, tunnels, or Hermes administration.
+Let normal people use powerful general-purpose agents from a phone or browser without understanding terminals, MCP, API keys, model providers, VPSs, tunnels, or harness administration.
 
-This repository does **not** reimplement Hermes' agent runtime, session engine, memory, tool execution, model gateway, or cloud lifecycle when Nous already provides those capabilities.
+The product should reuse each harness's supported runtime, sessions, memory, tools, and lifecycle capabilities rather than rebuilding them into a new agent platform.
 
-## V1 system shape
+## System shape
 
 ```text
 User
   |
   v
-Simple web experience
+Simple consumer web experience
   |
   v
-Thin product integration
+Minimal product/account boundary
   |
-  +--> Hermes API server (chat, runs, sessions, capabilities)
+  v
+Harness connector seam
+  |                 |
+  v                 v
+Hermes             OpenClaw
+MVP                 next
   |
-  +--> Nous Portal / Hermes Cloud (hosting and lifecycle where needed)
+  v
+Nous Portal / Hermes Cloud where applicable
 ```
 
-Hermes remains the agent system. This product owns only the consumer-specific gaps that are actually required: onboarding, user-to-agent mapping, simplified permissions, product UX, and any minimal server-side mediation needed to keep credentials out of the browser.
+The connector seam is intentionally thin. It isolates harness-specific authentication, endpoints, capability discovery, request/stream transport, lifecycle access, and error translation. It does **not** introduce a generic task engine, session database, memory layer, or orchestration platform.
 
-## Explicit non-goals for V1
+## MVP: Hermes
+
+Hermes is the implementation target for the first usable and deployable web product. For Hermes, we reuse:
+
+- Hermes API server chat/run/session/capability surfaces;
+- streaming agent events and control endpoints;
+- Hermes memory/session behavior;
+- Nous Portal and Hermes Cloud hosting/lifecycle capabilities.
+
+The immediate milestone is still to prove the thinnest real browser path against a real Hermes instance before adding custom infrastructure.
+
+## Second harness: OpenClaw
+
+OpenClaw is the planned second harness after the Hermes web MVP works. Its purpose is both product expansion and an architectural test: implementing OpenClaw should validate which parts of the connector seam are genuinely reusable.
+
+We do not delay Hermes to pre-generalize for OpenClaw, and we do not force OpenClaw into fake Hermes semantics later.
+
+## Product-owned concerns
+
+Only consumer-specific concerns belong here, such as:
+
+- onboarding and sign-in;
+- user-to-harness/agent connection mapping;
+- harness selection;
+- secret mediation;
+- simplified permissions and entitlements;
+- consumer UX;
+- billing/product analytics when needed;
+- future distribution channels.
+
+## Explicit non-goals
 
 - rebuilding a generic agent control plane;
-- rebuilding Hermes sessions, runs, approvals, memory, skills, tools, or scheduling;
-- supporting multiple harnesses before there is a concrete reason;
-- building a ChatGPT plugin, GPT, GPT Action, or MCP client surface;
-- exposing Hermes administrative configuration to ordinary users.
+- rebuilding a harness's sessions, runs, approvals, memory, skills, tools, or scheduling;
+- forcing every harness to expose identical capabilities;
+- building ChatGPT-specific product state into V1.
 
-ChatGPT is a possible V2+ distribution channel, not a V1 dependency.
-
-## Upstream capabilities we rely on
-
-Current Hermes documentation exposes:
-
-- an OpenAI-compatible API server plus run/session/capability APIs;
-- streaming agent events and approvals/control endpoints;
-- stable session keys for multi-user memory scoping;
-- compatibility with existing web frontends such as Open WebUI and LobeChat;
-- Nous Portal OAuth and Hermes Cloud lifecycle management.
-
-See `docs/integrations/hermes.md` and `docs/integrations/nous-portal.md` for the verified boundary.
+ChatGPT plugin / Apps SDK / MCP remains a possible V2+ distribution channel, not a V1 dependency.
 
 ## Project truth
 
@@ -58,4 +83,4 @@ Read in order:
 4. [`ARCHITECTURE.md`](ARCHITECTURE.md)
 5. [`docs/decisions/`](docs/decisions/)
 
-The immediate milestone is to prove the thinnest real consumer path against a real Hermes instance before adding custom infrastructure.
+Current execution order: **Hermes MVP -> production web path -> OpenClaw connector -> additional channels/harnesses when justified.**
