@@ -1,54 +1,63 @@
-# Hermes Consumer Layer — Roadmap
+# Harness Consumer Layer — Roadmap
 
-This roadmap sequences the product around one rule: reuse Nous/Hermes wherever possible and add custom infrastructure only when a verified consumer-product gap requires it.
+This roadmap follows two rules:
+
+1. reuse each harness's supported upstream capabilities before building replacements;
+2. ship one harness at a time rather than delaying the MVP for hypothetical generalization.
+
+Hermes is the first harness. OpenClaw is the planned second harness.
 
 ## M0 — Product Reset
 
-**Goal:** remove the assumption that we should rebuild a generic agent control plane.
+**Goal:** remove the assumption that we should rebuild a generic agent control plane while preserving a harness-neutral consumer product boundary.
 
 **Gate:**
-- canonical docs define the product as a thin consumer layer;
-- old control-plane architecture is superseded by ADR;
-- ChatGPT is moved to V2+ future-channel scope;
-- roadmap requires upstream verification before custom backend work.
+- canonical docs define a thin multi-harness consumer layer;
+- the old shared control-plane architecture is superseded;
+- Hermes is identified as the MVP harness rather than the product identity;
+- OpenClaw is identified as the planned second harness;
+- ChatGPT is moved to V2+ distribution-channel scope;
+- custom backend work requires upstream-gap evidence.
 
-## M1 — Thin Consumer Path
+## M1 — Hermes Thin Consumer Path
 
 **Goal:** prove that a real user can use a real Hermes agent through a browser without a bespoke agent backend.
 
 **Work:**
-- verify the existing Hermes Cloud instance's supported API-server/network surface;
+- verify the existing Hermes Cloud instance's API-server/network surface;
 - enable/use the Hermes API server with safe server-side credentials;
-- connect a proven OpenAI-compatible frontend such as Open WebUI or LobeChat;
+- deploy a manual-test web surface, including Vercel where useful;
+- connect a proven compatible frontend or minimal test UI;
 - verify streaming/tool activity;
 - verify session creation/resume/history;
 - verify stable per-user session-key/memory scoping;
 - verify at least one agent tool workflow end-to-end;
 - document every UX/security/product gap discovered.
 
-**Gate:** a browser client completes a real Hermes task end-to-end using supported Hermes APIs, and the remaining custom-product gaps are evidence-backed rather than assumed.
+**Gate:** a deployed browser client completes a real Hermes task end-to-end, including manual phone/browser testing, and remaining custom-product gaps are evidence-backed rather than assumed.
 
 ## M2 — Minimal Consumer Product Layer
 
-**Goal:** implement only the gaps identified by M1.
+**Goal:** implement only the shared consumer gaps identified by M1 while keeping Hermes transport behind a thin connector seam.
 
 Potential work is conditional on M1 findings and may include:
 - consumer sign-in/onboarding;
-- user-to-Hermes-instance/profile mapping;
-- server-side API credential mediation;
+- user-to-harness/agent connection mapping;
+- server-side credential mediation;
 - simplified agent creation/selection;
 - product-specific entitlement checks;
-- hiding administrative Hermes surfaces;
-- light frontend customization or replacement.
+- hiding administrative harness surfaces;
+- light frontend customization or replacement;
+- a minimal connector interface around Hermes transport/capabilities.
 
-**Gate:** each custom component has a documented upstream gap that justifies its existence, and normal users never need raw Hermes/Nous credentials.
+**Gate:** each custom component has a documented product/upstream gap, normal users never need raw harness credentials, and Hermes-specific transport details do not leak throughout product-facing code.
 
 ## M3 — Multi-User Isolation and Provisioning
 
-**Goal:** safely support more than one unrelated consumer.
+**Goal:** safely support more than one unrelated consumer on Hermes.
 
 **Work, only where upstream mechanisms are insufficient:**
-- define whether isolation uses dedicated Hermes Cloud instances, Hermes profiles, or another supported upstream boundary;
+- choose the supported Hermes isolation boundary;
 - automate account-to-agent provisioning/mapping;
 - enforce authorization before proxying to Hermes;
 - verify session/memory isolation across test users;
@@ -56,9 +65,9 @@ Potential work is conditional on M1 findings and may include:
 
 **Gate:** two test users cannot access each other's agent, sessions, memory, credentials, or administrative controls.
 
-## M4 — Production Web Release
+## M4 — Hermes Production Web MVP
 
-**Goal:** ship a stable mobile-friendly web experience.
+**Goal:** ship a stable mobile-friendly public product using Hermes as the first harness.
 
 **Work:**
 - production HTTPS deployment;
@@ -68,29 +77,49 @@ Potential work is conditional on M1 findings and may include:
 - onboarding/error UX;
 - privacy/retention documentation;
 - regression and real-Hermes E2E coverage;
-- rollback procedures.
+- rollback procedures;
+- repeated manual testing from desktop and phone.
 
-**Gate:** a supported user can sign up/connect, open the product on a phone, converse with Hermes, resume work, and use tools without seeing infrastructure setup.
+**Gate:** a supported user can sign up/connect, open the product on a phone, use a Hermes-backed agent, resume work, and use tools without seeing infrastructure setup.
 
-## M5 — Product Economics and Growth Layer
+## M5 — OpenClaw Second Harness
 
-**Goal:** add commercial/product systems only after the core consumer experience is proven.
+**Goal:** add OpenClaw as the second useful harness and use it to validate the harness connector boundary.
+
+**Work:**
+- research and verify current OpenClaw programmatic/runtime surfaces;
+- document its auth, lifecycle, session/state, streaming, tools, and isolation semantics without assuming Hermes equivalence;
+- implement the smallest OpenClaw connector needed by the existing consumer product;
+- revise the connector contract where real differences require it;
+- keep OpenClaw-native durable runtime state upstream;
+- verify the same core consumer journey through OpenClaw where supported;
+- expose capability differences honestly in the UI.
+
+**Gate:** a user can select/use an OpenClaw-backed agent through the same consumer product without a forked frontend/account system or a duplicated generic agent control plane.
+
+## M6 — Product Economics and Growth Layer
+
+**Goal:** add commercial/product systems after the core product and second-harness architecture are demonstrated.
 
 Possible work:
 - billing/subscriptions;
 - usage/entitlements;
 - product analytics;
 - referral/discovery/onboarding improvements;
-- lifecycle automation for per-user Hermes capacity.
+- lifecycle automation for per-user harness capacity.
 
-**Gate:** economics and lifecycle behavior are measurable and do not require users to manage Hermes infrastructure manually.
+**Gate:** economics and lifecycle behavior are measurable and users do not need to manage harness infrastructure manually.
 
 ## V2+ — Additional Distribution Channels
 
 ChatGPT plugin / Apps SDK / MCP is a future client channel, not a core architecture dependency.
 
-Other possible channels include Telegram, native mobile, or partner integrations. Add a channel only when it reuses the same consumer/account boundary and provides concrete distribution value.
+Other possible channels include native mobile, Telegram, or partner integrations. A channel should reuse the same consumer/account and harness-connector boundaries.
+
+## Additional harnesses
+
+After Hermes and OpenClaw, add another harness only when it brings concrete capability, deployment, cost, or distribution value. Do not collect adapters merely to satisfy abstraction aesthetics.
 
 ## Development sequencing rule
 
-Do not create a generic task/session/runtime control plane unless M1/M2 prove that supported Hermes/Nous surfaces cannot satisfy a required behavior. Do not add additional harnesses merely to preserve an abstraction.
+**Hermes MVP first. OpenClaw second. Generalize only from evidence produced by those implementations.**
