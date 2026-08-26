@@ -1,88 +1,73 @@
-# ChatGPTHarnessPlugin — Project Overview
+# Hermes Consumer Layer — Project Overview
 
-This repository is the canonical source of truth for the ChatGPT Harness Plugins product.
+This repository is the canonical source of truth for a consumer distribution layer over Nous Research's Hermes Agent and Hermes Cloud.
 
 ## End goal
 
-Build a cloud-hosted, function-agnostic control plane that lets people invoke powerful agent harnesses directly from ChatGPT on web, mobile, and desktop/Codex without needing to understand MCP, tunnels, VPS hosting, agent processes, or harness-specific infrastructure.
+A normal user should be able to open a mobile or desktop web experience, sign in, get or connect a Hermes agent, and use it without understanding Hermes infrastructure.
 
-The platform should support agents that code, research, market, perform SEO, operate browser workflows, handle productivity tasks, or do other general-purpose work.
+## Product boundary
 
-## Product model
+Nous/Hermes owns the agent runtime. We reuse supported upstream capabilities rather than reproducing them.
 
-ChatGPT is a client, not the control plane.
+This product may own only the gaps required for a consumer product:
 
-The shared control plane owns:
+- onboarding and account UX;
+- user-to-Hermes-agent/instance mapping;
+- a simplified chat/task experience;
+- minimal server-side credential mediation;
+- product-level permissions and entitlements when upstream controls are insufficient;
+- billing/product analytics if needed;
+- future distribution-channel adapters.
 
-- identity and tenant resolution,
-- harness/runtime registry and routing,
-- durable task and session state,
-- authorization, policy, and approvals,
-- credentials and secret boundaries,
-- audit and usage metadata,
-- reliability and retries,
-- shared public/private contracts.
+## What we do not own by default
 
-Each harness is integrated behind a runtime adapter.
+Unless a concrete verified gap requires it, do not implement our own:
 
-## First runtime
+- agent execution engine;
+- task/run state machine;
+- session persistence;
+- long-term memory system;
+- tool/skill/MCP orchestration;
+- approval engine;
+- model gateway;
+- cloud runtime lifecycle engine;
+- generic multi-harness abstraction.
 
-Hermes is the first implementation target because it already provides a general-purpose agent harness and Nous-hosted infrastructure. It is not the product boundary.
+Hermes already exposes supported APIs for chat, runs, sessions, capabilities, skills/toolsets, streaming, and control. Nous Portal/Hermes Cloud provides hosted instances and lifecycle management.
 
-Future adapters may include OpenClaw, Pi, and other harnesses when doing so adds real user value.
+## V1 principle: prove before wrapping
 
-## Two delivery paths
+For each proposed backend component, first answer:
 
-### Private/canary
+1. Does Hermes or Nous Portal already provide this capability?
+2. Can the consumer UI use that supported surface safely?
+3. If not, what is the smallest mediation layer required?
 
-Used for owner dogfooding, protocol validation, staging, failure testing, and early end-to-end control.
+Custom infrastructure must be justified by an observed product gap, not by architectural preference.
 
-Temporary infrastructure is acceptable only when it sits behind production-shaped interfaces.
+## V1 delivery path
 
-### Published/stable
+The first usable channel is a mobile-friendly web experience. We should prefer adapting a proven OpenAI-compatible frontend for the earliest real end-to-end test if it meets the UX and security requirements, then replace or customize only the parts that matter.
 
-The user-facing ChatGPT app/plugin with production authentication, tenant isolation, reliability, safety, and publication requirements.
+## Future channels
 
-### Convergence rule
+ChatGPT plugin/Apps SDK/MCP integration is V2+ work. It should eventually consume the same product/account boundary, but V1 must not depend on ChatGPT-specific APIs or packaging.
 
-Private and published paths must converge on the same backend, domain model, adapters, task/session engine, policy layer, and tests before public release.
+## Development rules
+
+1. Verify upstream capabilities before designing replacements.
+2. Keep secrets server-side; never put Portal/Hermes credentials in browser code, prompts, logs, or source control.
+3. Add custom durable state only when product requirements cannot be satisfied by supported Hermes/Nous state.
+4. Preserve upstream semantics rather than inventing parallel task/session models.
+5. Do not add a second harness until there is a concrete user-facing reason.
+6. Unsupported or unverified features are explicit.
+7. Update `STATE.md` only when reality has been verified.
+8. Long-lived architecture changes require an ADR.
+9. ChatGPT-specific work stays under future-channel scope until V2 is explicitly started.
 
 ## Current milestone
 
-**M1 — Hermes Runtime Adapter**
+**M1 — Thin Consumer Path**
 
-M1 is not complete. The immediate technical objective is to verify Hermes' actual remote-control/session capabilities and implement the first shared runtime adapter without depending on unverified internal APIs.
-
-See [`STATE.md`](STATE.md) for verified current status.
-
-## Next priorities
-
-1. Verify the real Hermes remote execution/session protocol and Nous Portal lifecycle capabilities.
-2. Implement the shared runtime-adapter contract plus Hermes adapter.
-3. Prove a programmatic end-to-end run: select/start runtime → submit task → observe state/result → continue/cancel/stop where supported.
-
-## Hard development rules
-
-1. One shared core; clients and harness adapters stay thin.
-2. Every substantial change maps to a roadmap milestone.
-3. Do not create private-only business logic that must later be rewritten for publication.
-4. Do not couple ChatGPT-facing code directly to Hermes/OpenClaw/Pi internal classes or file layouts.
-5. Long-running task/session state lives server-side.
-6. Credentials never transit model context or enter source control.
-7. Unsupported runtime capabilities fail explicitly; never fabricate support.
-8. A feature is complete only when its relevant observable/end-to-end behavior is verified.
-9. Update `STATE.md` whenever verified project reality materially changes.
-10. Long-lived architecture changes require an ADR under `docs/decisions/`.
-
-## Canonical documents
-
-Read in this order:
-
-1. `PROJECT.md` — product goal and development invariants.
-2. `STATE.md` — verified reality today.
-3. `ROADMAP.md` — sequencing and milestone gates.
-4. `ARCHITECTURE.md` — long-lived system boundaries.
-5. `docs/decisions/` — accepted architecture decisions.
-6. `docs/integrations/`, `docs/product/`, and `docs/implementation/` — detailed working material.
-
-When documents disagree, verified code/runtime behavior and `STATE.md` take precedence over older plans and conversation history.
+Prove a real browser-based user flow over a real Hermes instance using supported Hermes/Nous interfaces with as little custom backend as possible.
