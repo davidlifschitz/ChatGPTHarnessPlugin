@@ -45,7 +45,7 @@ Authoritative references:
 - `python tools/hermes_probe.py --help` and Python bytecode compilation succeed in the local validation environment.
 - The branch contains a dependency-free Vercel M1 browser test surface: a static mobile-friendly page, server-only `/api/status` and `/api/chat` routes, and a thin Hermes HTTP connector that discovers the advertised model instead of hardcoding it.
 - The web test suite passes 10 Node tests covering server-only bearer auth, model discovery, API route behavior, configuration errors, and a guard that browser code contains no Hermes server configuration or bearer handling.
-- GitHub Actions workflow `M1 tests` passes on branch head `91cb70681b4fcbd9882010ac659f8fb913877eb6`.
+- GitHub Actions workflow `M1 tests` passes on the prior branch head `91cb70681b4fcbd9882010ac659f8fb913877eb6`; the reconciled branch head requires a fresh run after the evidence update.
 
 ## Verified Vercel manual-test deployment
 
@@ -60,16 +60,26 @@ Authoritative references:
 - The latest observed status result is therefore still blocked at the Hermes/upstream health boundary. A successful Hermes connection has not yet been observed from Vercel.
 - No Hermes credential or Hermes base URL is present in browser-served HTML.
 
-## Verified Hermes Cloud blocker
+## Historical Hermes Cloud blocker
 
-- After the earlier `STOPPING` observation and `503: Auth provider 'nous' unreachable` error, the user manually checked the existing Hermes Cloud agent `Fair-dinkum Esky` in Nous Portal on 2026-08-26 and reported that it is **not running**.
-- No new Hermes Cloud agent has been created, and no additional restart or resource mutation was performed in this verification pass.
-- Because the existing agent is not running, the real read-only probe, explicit `probe-ok` turn, Vercel `/api/chat` verification, and manual phone/browser Hermes turn remain intentionally gated.
+- An earlier verification pass recorded `Fair-dinkum Esky` as not running; that observation is superseded by the fresh live verification below.
+
+## Fresh live M1 debugging evidence
+
+- The existing Hermes Cloud agent `Fair-dinkum Esky` (`cmt642qt80005j90ab7o99n5h`) is freshly verified through the authenticated Portal/dashboard as `RUNNING` and `HEALTHY`; the dashboard reports the API server as connected. No additional agent was created.
+- The known first-party dashboard/API origin is `https://fair-dinkum-esky-8724.agents.nousresearch.com`. Using the current server-side API key, direct read-only requests to `/v1/capabilities`, `/v1/models`, and `/api/sessions` all return HTTP 503 with `Auth provider 'nous' unreachable`.
+- The authenticated Hermes dashboard log identifies the auth failure as the public-bind Nous dashboard gate attempting JWT verification of the opaque API-server key: `JWKS lookup failed: DecodeError('Not enough segments')`. This occurs before the API-server's local `API_SERVER_KEY` comparison, so the cloud dashboard origin is not a usable external API origin for the current bridge credential by itself.
+- The selected `stealth/ox-alpha` model's free period ended; the active session successfully switched to `meituan/longcat-2.0:free`. This is a separate model-availability issue and is not evidence that the bridge path works.
+- Direct-origin discovery found no separate API hostname, private/service hostname, exposed API port, or first-party machine-authenticated route in the current Portal/dashboard surface. The API server's live `API_SERVER_ENABLED`, `API_SERVER_HOST`, and `API_SERVER_PORT` values remain unexposed by the managed Cloud UI; documented defaults are not treated as live facts.
+- Cloudflare preflight: `cloudflared` 2026.3.0 is installed and the account has unrelated existing tunnels, but no Hermes-specific tunnel or origin-side connector is present. `wrangler whoami` reports that its auth token is expired and cannot be refreshed non-interactively. No tunnel, DNS route, Worker, Access policy, or Cloudflare credential was created.
+- The Vercel Preview deployment remains protected and `READY`, but its server-side `/api/status` still returns HTTP 503 because its configured dashboard origin is subject to the same upstream OAuth gate. Production remains intentionally unconfigured.
+- No tunnel or Cloudflare resource will be created until a supported origin-side process or Nous mechanism is proven able to reach the managed Hermes API server directly.
 
 ## Not yet verified / not yet implemented
 
-- The exact current Hermes Cloud lifecycle enum/status beyond the user's observation that `Fair-dinkum Esky` is not running.
-- Whether the previous upstream error `503: Auth provider 'nous' unreachable` is still the exact current Hermes provider error; the Vercel route currently exposes only the sanitized upstream HTTP status.
+- A supported external Hermes API origin/authentication mechanism for the existing Hermes Cloud instance. The public dashboard URL is currently OAuth-gated ahead of the API-server key check.
+- An origin-side process or supported Nous mechanism that can reach the managed Hermes API server directly, which is required before a Cloudflare Tunnel can be created safely.
+- The live `API_SERVER_ENABLED`, `API_SERVER_HOST`, and `API_SERVER_PORT` values for the managed instance; the current Portal/dashboard surface does not expose them.
 - A successful run of `tools/hermes_probe.py` against the real Hermes Cloud instance.
 - Successful reads of `/v1/capabilities`, `/v1/models`, and `/api/sessions` against the real instance in this M1 verification pass.
 - One explicit real Hermes test turn returning `probe-ok`.
@@ -89,15 +99,14 @@ Authoritative references:
 
 ## Current critical path
 
-1. Resolve or obtain a healthy `RUNNING` state for the existing `Fair-dinkum Esky` Hermes Cloud agent through supported Nous/Hermes controls, without creating another agent or repeatedly restarting/mutating resources.
-2. Once healthy, run the existing read-only probe against `/v1/capabilities`, `/v1/models`, and `/api/sessions`.
-3. Run exactly one explicit real test turn after the read-only checks pass.
-4. Verify the protected Vercel Preview `/api/status` and then one minimal `/api/chat` request.
-5. Manually test the deployed flow from desktop and phone only after server-side checks pass.
-6. Verify chat, streaming/tool progress, session resume, and per-user memory/session isolation.
-7. Record exactly which consumer requirements remain unmet.
-8. Build only the minimum shared product layer needed for those unmet requirements.
-9. Ship the Hermes production web MVP before beginning the OpenClaw connector milestone.
+1. Determine whether Nous/Hermes Cloud exposes a supported direct machine API origin or origin-side execution path for the existing `Fair-dinkum Esky` agent.
+2. If and only if the origin-side API server can be reached directly, establish the smallest secure external machine ingress; otherwise classify the managed Cloud boundary as blocked and prepare a support escalation.
+3. Once a direct machine ingress exists, run the existing read-only probe against `/v1/capabilities`, `/v1/models`, and `/api/sessions`.
+4. Run exactly one explicit real test turn after the read-only checks pass.
+5. Verify the protected Vercel Preview `/api/status` and then one minimal `/api/chat` request.
+6. Manually test the deployed flow from desktop and phone only after server-side checks pass.
+7. Record exactly which consumer requirements remain unmet, then build only the minimum shared product layer needed for those unmet requirements.
+8. Ship the Hermes production web MVP before beginning the OpenClaw connector milestone.
 
 ## State-update rule
 
