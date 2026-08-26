@@ -4,7 +4,7 @@
 
 **Goal:** Add a small, testable command-line probe that verifies which supported Hermes HTTP surfaces are reachable on a configured real deployment before the project builds any custom consumer backend.
 
-**Architecture:** Use Python 3 standard-library HTTP and `unittest` only, so the probe introduces no application framework or product-stack commitment. The probe is read-only by default; a real model turn requires an explicit `--chat` flag and message. Credentials come only from environment/CLI input and are never printed.
+**Architecture:** Use Python 3 standard-library HTTP and `unittest` only, so the probe introduces no application framework or product-stack commitment. The probe is read-only by default; a real model turn requires an explicit `--chat` flag and message. Credentials come only from environment/CLI input and are never printed. Model identity is discovered through Hermes' `/v1/models` endpoint instead of being hardcoded.
 
 **Tech Stack:** Python 3.11+ standard library (`argparse`, `json`, `urllib.request`, `unittest`, `http.server`).
 
@@ -15,6 +15,7 @@
 - Do not add a generic control plane, database, frontend framework, or ChatGPT-specific code.
 - Default execution is read-only.
 - Never print the bearer credential.
+- Discover the API-server model ID from `/v1/models`.
 - Treat unavailable optional Hermes capabilities as reported capability gaps rather than fabricated support.
 - Live external verification remains separate from unit tests and requires an actual Hermes endpoint.
 
@@ -29,11 +30,12 @@
 **Interfaces:**
 - Produces: `HermesProbe(base_url: str, api_key: str, timeout: float = 10.0)`
 - Produces: `HermesProbe.get_json(path: str) -> object`
+- Produces: `HermesProbe.models() -> object`
 - Produces: `HermesProbe.read_only_report() -> dict[str, object]`
 
 - [ ] **Step 1: Write failing tests**
 
-Use a local `ThreadingHTTPServer` fixture that implements `/v1/capabilities` and `/api/sessions`. Assert that `read_only_report()` returns both decoded payloads, sends `Authorization: Bearer <key>`, normalizes a trailing slash in the base URL, and never includes the key in the returned report.
+Use a local `ThreadingHTTPServer` fixture that implements `/v1/capabilities`, `/v1/models`, and `/api/sessions`. Assert that `read_only_report()` returns all decoded payloads, sends `Authorization: Bearer <key>`, normalizes a trailing slash in the base URL, and never includes the key in the returned report.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -43,15 +45,7 @@ Expected: import or symbol failure because `tools/hermes_probe.py` does not exis
 
 - [ ] **Step 3: Implement minimal client**
 
-Implement `HermesProbe` with `urllib.request.Request`, JSON decoding, explicit timeout, base-URL normalization, and bearer auth. `read_only_report()` calls `/v1/capabilities` and `/api/sessions` and returns:
-
-```python
-{
-    "base_url": "https://example.invalid",
-    "capabilities": {...},
-    "sessions": [...],
-}
-```
+Implement `HermesProbe` with `urllib.request.Request`, JSON decoding, explicit timeout, base-URL normalization, and bearer auth. `read_only_report()` calls `/v1/capabilities`, `/v1/models`, and `/api/sessions`. A `404` from the optional session surface is reported as unsupported while auth/network failures remain fatal.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -68,23 +62,24 @@ Expected: all Task 1 tests pass.
 - Modify: `tests/test_hermes_probe.py`
 
 **Interfaces:**
-- Produces: `HermesProbe.chat(message: str) -> object`
+- Produces: `HermesProbe.default_model() -> str`
+- Produces: `HermesProbe.chat(message: str, *, model: str | None = None) -> object`
 - Produces: `ProbeError` with sanitized diagnostics.
 - Produces CLI: `python tools/hermes_probe.py --base-url URL [--api-key KEY] [--chat MESSAGE]`
 
 - [ ] **Step 1: Write failing tests**
 
-Extend the local server with `POST /v1/chat/completions`. Assert that `chat()` sends model `hermes-agent` and the user message. Add an auth-failure response whose body contains the supplied key and assert `ProbeError` string output replaces that credential with `[REDACTED]`. Add a CLI parser test proving chat is absent unless explicitly supplied.
+Extend the local server with `POST /v1/chat/completions`. Make `/v1/models` advertise a non-default profile model ID such as `profile-main`, then assert that `chat()` sends that advertised model ID and the user message. Add an auth-failure response whose body contains the supplied key and assert `ProbeError` replaces the credential with `[REDACTED]`. Add a CLI parser test proving chat is absent unless explicitly supplied.
 
 - [ ] **Step 2: Run tests and verify RED**
 
 Run: `python -m unittest -v tests.test_hermes_probe`
 
-Expected: failures for missing `chat`, `ProbeError`, and CLI parser behavior.
+Expected: failures for missing model discovery/chat behavior, `ProbeError`, or CLI parser behavior as each slice is introduced.
 
 - [ ] **Step 3: Implement minimal behavior**
 
-Add JSON POST support, sanitized `ProbeError`, `chat()`, `build_parser()`, and `main()`. Read the API key from `HERMES_API_KEY` when `--api-key` is omitted. Require a non-empty key. Print the read-only report as formatted JSON; only execute/print a chat response when `--chat` is provided.
+Add JSON POST support, sanitized `ProbeError`, model discovery, `chat()`, `build_parser()`, and `main()`. Read the API key from `HERMES_API_KEY` when `--api-key` is omitted. Require a non-empty key. Print the read-only report as formatted JSON; only execute/print a chat response when `--chat` is provided.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -105,37 +100,28 @@ Expected: all tests pass with no credential in output.
 
 - [ ] **Step 1: Document read-only use**
 
-Document:
-
-```bash
-export HERMES_BASE_URL='https://your-hermes-host.example'
-export HERMES_API_KEY='set-locally-never-commit'
-python tools/hermes_probe.py --base-url "$HERMES_BASE_URL"
-```
+Document the environment variables and that read-only mode checks capabilities, model discovery, and the optional session surface.
 
 - [ ] **Step 2: Document explicit live-chat use**
 
-Document:
+Document an explicit `--chat 'Reply with exactly: probe-ok'` example and state that it can incur inference/tool usage.
 
-```bash
-python tools/hermes_probe.py \
-  --base-url "$HERMES_BASE_URL" \
-  --chat 'Reply with exactly: probe-ok'
-```
+- [ ] **Step 3: Document deployment constraints**
 
-State that this can incur inference/tool usage and is not part of the default read-only check.
+Record the current official Hermes defaults (`API_SERVER_ENABLED=false`, host `127.0.0.1`, port `8642`, bearer key required) and explicitly state that Hermes Cloud's externally reachable API-server ingress still requires live verification.
 
-- [ ] **Step 3: Validate repository-local behavior**
+- [ ] **Step 4: Validate repository-local behavior**
 
 Run:
 
 ```bash
 python -m unittest -v tests.test_hermes_probe
+python -m py_compile tools/hermes_probe.py tests/test_hermes_probe.py
 python tools/hermes_probe.py --help
 ```
 
-Expected: tests pass and help lists `--base-url`, `--api-key`, and optional `--chat`.
+Expected: tests pass, compilation exits zero, and help lists `--base-url`, `--api-key`, and optional `--chat`.
 
-- [ ] **Step 4: Review scope**
+- [ ] **Step 5: Review scope**
 
 Confirm the diff contains no application framework, database, ChatGPT adapter, fake Hermes server outside tests, or committed secret values.
