@@ -1,41 +1,61 @@
-# ChatGPTHarnessPlugin
+# Hermes Consumer Layer
 
-A shared control plane and ChatGPT plugin platform for connecting ChatGPT to general-purpose agent harnesses such as Hermes, OpenClaw, Pi, and future runtimes.
+A thin, consumer-facing product layer over Nous Research's existing Hermes Agent and Hermes Cloud infrastructure.
 
 ## Goal
 
-Make capable agent harnesses usable directly from ChatGPT on web, mobile, and desktop/Codex without requiring end users to understand MCP servers, tunnels, VPS hosting, runtime processes, or harness-specific infrastructure.
+Make Hermes usable by normal people from a phone or browser without requiring them to understand terminals, MCP, API keys, model providers, cloud instances, tunnels, or Hermes administration.
 
-Hermes is the first runtime integration, not the identity of the product.
+This repository does **not** reimplement Hermes' agent runtime, session engine, memory, tool execution, model gateway, or cloud lifecycle when Nous already provides those capabilities.
 
-## Architecture
+## V1 system shape
 
 ```text
-ChatGPT clients
-      |
-      | MCP / HTTPS
-      v
-Harness Control Plane
-      |
-      v
-Runtime Adapter
-  |       |      |
-Hermes  OpenClaw  Pi  ...
+User
+  |
+  v
+Simple web experience
+  |
+  v
+Thin product integration
+  |
+  +--> Hermes API server (chat, runs, sessions, capabilities)
+  |
+  +--> Nous Portal / Hermes Cloud (hosting and lifecycle where needed)
 ```
 
-The control plane owns identity, task/session state, authorization, runtime routing, audit/usage metadata, and the stable ChatGPT-facing contract. Harness-specific behavior stays behind adapters.
+Hermes remains the agent system. This product owns only the consumer-specific gaps that are actually required: onboarding, user-to-agent mapping, simplified permissions, product UX, and any minimal server-side mediation needed to keep credentials out of the browser.
+
+## Explicit non-goals for V1
+
+- rebuilding a generic agent control plane;
+- rebuilding Hermes sessions, runs, approvals, memory, skills, tools, or scheduling;
+- supporting multiple harnesses before there is a concrete reason;
+- building a ChatGPT plugin, GPT, GPT Action, or MCP client surface;
+- exposing Hermes administrative configuration to ordinary users.
+
+ChatGPT is a possible V2+ distribution channel, not a V1 dependency.
+
+## Upstream capabilities we rely on
+
+Current Hermes documentation exposes:
+
+- an OpenAI-compatible API server plus run/session/capability APIs;
+- streaming agent events and approvals/control endpoints;
+- stable session keys for multi-user memory scoping;
+- compatibility with existing web frontends such as Open WebUI and LobeChat;
+- Nous Portal OAuth and Hermes Cloud lifecycle management.
+
+See `docs/integrations/hermes.md` and `docs/integrations/nous-portal.md` for the verified boundary.
 
 ## Project truth
 
-Before substantive work, read:
+Read in order:
 
 1. [`PROJECT.md`](PROJECT.md)
 2. [`STATE.md`](STATE.md)
 3. [`ROADMAP.md`](ROADMAP.md)
 4. [`ARCHITECTURE.md`](ARCHITECTURE.md)
+5. [`docs/decisions/`](docs/decisions/)
 
-Detailed decisions, integrations, product paths, and implementation plans live under [`docs/`](docs/).
-
-## Current focus
-
-The first implementation target is Hermes. The immediate milestone is to verify the real Hermes remote-control/session surface and prove an end-to-end ChatGPT → control plane → Hermes task flow without coupling the platform to Hermes internals.
+The immediate milestone is to prove the thinnest real consumer path against a real Hermes instance before adding custom infrastructure.
