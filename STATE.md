@@ -60,9 +60,15 @@ Authoritative references:
 - The latest observed status result is therefore still blocked at the Hermes/upstream health boundary. A successful Hermes connection has not yet been observed from Vercel.
 - No Hermes credential or Hermes base URL is present in browser-served HTML.
 
+## Verified Hermes Cloud blocker
+
+- After the earlier `STOPPING` observation and `503: Auth provider 'nous' unreachable` error, the user manually checked the existing Hermes Cloud agent `Fair-dinkum Esky` in Nous Portal on 2026-08-26 and reported that it is **not running**.
+- No new Hermes Cloud agent has been created, and no additional restart or resource mutation was performed in this verification pass.
+- Because the existing agent is not running, the real read-only probe, explicit `probe-ok` turn, Vercel `/api/chat` verification, and manual phone/browser Hermes turn remain intentionally gated.
+
 ## Not yet verified / not yet implemented
 
-- Current Hermes Cloud lifecycle status for the existing agent after the previously observed `STOPPING` state.
+- The exact current Hermes Cloud lifecycle enum/status beyond the user's observation that `Fair-dinkum Esky` is not running.
 - Whether the previous upstream error `503: Auth provider 'nous' unreachable` is still the exact current Hermes provider error; the Vercel route currently exposes only the sanitized upstream HTTP status.
 - A successful run of `tools/hermes_probe.py` against the real Hermes Cloud instance.
 - Successful reads of `/v1/capabilities`, `/v1/models`, and `/api/sessions` against the real instance in this M1 verification pass.
@@ -83,7 +89,7 @@ Authoritative references:
 
 ## Current critical path
 
-1. Confirm the existing Hermes Cloud agent is `RUNNING`/healthy and that the Nous inference provider is reachable, without creating or restarting another instance.
+1. Resolve or obtain a healthy `RUNNING` state for the existing `Fair-dinkum Esky` Hermes Cloud agent through supported Nous/Hermes controls, without creating another agent or repeatedly restarting/mutating resources.
 2. Once healthy, run the existing read-only probe against `/v1/capabilities`, `/v1/models`, and `/api/sessions`.
 3. Run exactly one explicit real test turn after the read-only checks pass.
 4. Verify the protected Vercel Preview `/api/status` and then one minimal `/api/chat` request.
