@@ -92,6 +92,8 @@ Conflicting official references:
 - https://developers.openai.com/chatgpt
 - https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt
 
+The same current Help Center page explicitly says MCP apps are not available on mobile and are web-only. Therefore iPhone/mobile invocation is not an M1 gate and must not be represented as currently supported.
+
 ## Verified Sign in with ChatGPT state
 
 OpenAI currently lists Hermes Agent among participating apps where eligible Plus/Pro users may choose to use ChatGPT plan usage for AI requests.
@@ -195,7 +197,7 @@ It does **not** replace the upstream-first harness model or ADR 0005's runtime-b
 - use of Sign in with ChatGPT inside the selected Hermes runtime;
 - multi-user OAuth/isolation;
 - public plugin package validation/submission/approval;
-- intended mobile plugin behavior;
+- any future change that makes MCP apps available on mobile;
 - OpenClaw integration;
 - billing, entitlements, analytics, or public onboarding.
 
