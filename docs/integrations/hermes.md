@@ -1,6 +1,6 @@
 # Hermes Integration
 
-Hermes is the upstream agent system for V1. It remains authoritative for execution and native state regardless of who hosts its process.
+Hermes is the upstream agent system for the first harness implementation. It remains authoritative for execution and native state regardless of who hosts its process.
 
 ## Verified supported surfaces
 
@@ -23,16 +23,20 @@ Hermes owns agent execution/tool loops, run/session semantics, message history, 
 
 Our product does not duplicate these systems by default.
 
-## M1 integration strategy
+The ChatGPT-facing MCP service translates a small set of user outcomes into supported Hermes operations while keeping Hermes credentials and transport details server-side.
 
-1. Run an official Hermes runtime on a persistent operator-controlled cloud host.
-2. Persist Hermes-native data using the supported host volume/state layout.
-3. Configure provider/model/tool access through supported Hermes setup, including Nous Portal where useful.
-4. Enable the Hermes API server with a server-side bearer key.
-5. Place the API behind restricted machine ingress; do not expose the raw agent port broadly.
-6. Probe `/v1/capabilities`, `/v1/models`, and `/api/sessions` before model execution.
-7. Preserve Hermes session/run identifiers and semantics.
-8. Add product mediation only for credentials, authorization, account mapping, UX, or other observed gaps.
+## M2 integration strategy
+
+1. Start from the working ChatGPT personal-plugin MCP boundary produced in M1.
+2. Select a secure machine-accessible Hermes API origin.
+3. If managed Hermes Cloud still lacks a supported session/chat ingress, run official Hermes on persistent operator-controlled infrastructure under ADR 0005.
+4. Configure provider/model/tool access through supported Hermes setup, including Nous Portal or Sign in with ChatGPT where verified and useful.
+5. Enable the Hermes API server with a server-side bearer key.
+6. Place the API behind restricted machine ingress; do not expose the raw agent port broadly.
+7. Probe `/v1/capabilities`, `/v1/models`, and `/api/sessions` before model execution.
+8. Map the minimal plugin tool outcomes to Hermes-native sessions/runs.
+9. Preserve Hermes session/run identifiers and semantics.
+10. Add product mediation only for authentication, authorization, account/runtime mapping, safe tool behavior, or other observed gaps.
 
 ## Network and deployment constraints
 
@@ -43,22 +47,24 @@ Official Hermes configuration documents:
 - `API_SERVER_PORT=8642` by default;
 - `API_SERVER_KEY` required whenever the API server is enabled.
 
-Official Docker guidance shows deliberate network binding and persistent host data. Opening the API port on an Internet-facing machine is security-sensitive because Hermes can exercise powerful tools, so M1 should use a restricted/private or access-controlled HTTPS path in addition to Hermes bearer auth.
+Opening the API port on an Internet-facing machine is security-sensitive because Hermes can exercise powerful tools. The MCP service should reach Hermes over a restricted/private or access-controlled machine path in addition to Hermes bearer auth.
 
 ## Managed Hermes Cloud finding
 
-The previously tested public managed-Cloud dashboard hostname is not a usable `API_SERVER_KEY`-only machine origin under the observed contract because a human-facing Nous OAuth gate processes the Authorization header first.
+The public managed-Cloud dashboard hostname tested in August 2026 was not a usable `API_SERVER_KEY`-only machine origin under the observed contract because a human-facing Nous OAuth gate processed the Authorization header first.
 
-That result is historical evidence about one hosting product. It is not a limitation of the Hermes API server itself and no longer blocks M1.
+That result is historical evidence about the tested ingress path. It is not proof that every current/future Hermes Cloud ingress is unavailable.
+
+The documented Portal MCP surface manages cloud lifecycle; it does not itself document the Hermes session/chat transport required for M2.
 
 ## Security
 
-`API_SERVER_KEY`, Portal tokens, provider credentials, and ingress credentials remain server-side. Browser JavaScript never receives upstream secrets.
+`API_SERVER_KEY`, Portal tokens, provider credentials, ingress credentials, and user OAuth secrets remain server-side. ChatGPT receives only the MCP tool contract and permitted results.
 
 ## Authoritative references
 
 - https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
 - https://hermes-agent.nousresearch.com/docs/reference/environment-variables
-- https://hermes-agent.nousresearch.com/docs/user-guide/docker/
 - https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration
-- https://hermes-agent.nousresearch.com/docs/integrations/nous-portal
+- https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
+- https://learn.chatgpt.com/docs/sign-in-with-chatgpt
