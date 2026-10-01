@@ -1,0 +1,63 @@
+name: M1 live MCP smoke
+
+on:
+  push:
+    branches:
+      - m1/**
+
+permissions:
+  contents: read
+
+jobs:
+  live-mcp:
+    runs-on: ubuntu-latest
+    env:
+      MCP_URL: https://hermes-consumer-layer-m1-nkv17rxsn-davidlifschitzs-projects.vercel.app/mcp
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Initialize through MCP Inspector
+        run: npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --method initialize --format json
+
+      - name: List exactly two tools through MCP Inspector
+        run: |
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --method tools/list --format json > /tmp/tools.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/tools.json', 'utf8'));
+          const names = payload.result.tools.map((tool) => tool.name);
+          const expected = ['get_m1_status', 'run_m1_canary_action'];
+          if (JSON.stringify(names) !== JSON.stringify(expected)) {
+            throw new Error(`Unexpected tools: ${JSON.stringify(names)}`);
+          }
+          console.log(JSON.stringify({ tools: names }));
+          NODE
+
+      - name: Call deployed read tool
+        run: |
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --method tools/call --tool-name get_m1_status --tool-args-json '{}' --format json > /tmp/status.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/status.json', 'utf8'));
+          const value = payload.result.structuredContent;
+          if (value?.service !== 'chatgpt-harness-plugin' || value?.milestone !== 'M1' || value?.status !== 'ready') {
+            throw new Error(`Unexpected status: ${JSON.stringify(value)}`);
+          }
+          console.log(JSON.stringify(value));
+          NODE
+
+      - name: Call deployed action tool exactly once
+        run: |
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --method tools/call --tool-name run_m1_canary_action --tool-args-json '{"label":"m1-live-smoke"}' --format json > /tmp/action.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/action.json', 'utf8'));
+          const value = payload.result.structuredContent;
+          if (value?.success !== true || value?.label !== 'm1-live-smoke' || !/^m1_[0-9a-f-]{36}$/.test(value?.receipt_id || '')) {
+            throw new Error(`Unexpected action result: ${JSON.stringify(value)}`);
+          }
+          console.log(JSON.stringify({ receipt_id: value.receipt_id, label: value.label }));
+          NODE
