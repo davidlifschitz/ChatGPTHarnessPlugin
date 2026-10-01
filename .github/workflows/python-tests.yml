@@ -1,4 +1,4 @@
-name: M1 tests
+name: Repository tests
 
 on:
   push:
