@@ -35,7 +35,7 @@ test('Render Hermes runtime keeps raw API on loopback behind a separate bridge c
   assert.match(blueprint, /sizeGB: 2/);
   assert.match(blueprint, /plan: 1c-2g/);
   assert.match(blueprint, /key: API_SERVER_KEY\s+generateValue: true/);
-  assert.match(blueprint, /key: HERMES_BRIDGE_KEY\s+generateValue: true/);
+  assert.match(blueprint, /key: HERMES_BRIDGE_KEY\s+sync: false/);
   assert.match(blueprint, /key: OPENAI_API_KEY\s+sync: false/);
   assert.match(blueprint, /key: HERMES_DASHBOARD\s+value: "0"/);
   assert.doesNotMatch(blueprint, /API_SERVER_CORS_ORIGINS/);
