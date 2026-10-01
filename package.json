@@ -1,5 +1,5 @@
 {
-  "name": "harness-consumer-layer-m1",
+  "name": "chatgpt-harness-plugin",
   "private": true,
   "version": "0.0.0",
   "scripts": {
