@@ -2,8 +2,19 @@
   "name": "chatgpt-harness-plugin",
   "private": true,
   "version": "0.0.0",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "test": "node --test tests/web/*.test.js",
-    "check": "node --check lib/hermes.js && node --check api/status.js && node --check api/chat.js"
+    "check": "node --check lib/hermes.js && node --check lib/mcp.js && node --check api/status.js && node --check api/chat.js && node --check api/mcp.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.2.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.2.0"
   }
 }
