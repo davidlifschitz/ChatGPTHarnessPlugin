@@ -375,8 +375,16 @@ test('tool and protocol results never expose environment sentinels or deployment
   const client = await connectClient({ versionNegotiation: { mode: 'auto' } });
   try {
     const status = await client.callTool({name: 'get_m1_status', arguments: {}});
+    const action = await client.callTool({
+      name: 'run_m1_canary_action',
+      arguments: {label: 'secret-leak-check'},
+    });
     const malformed = await rawRequest('POST', '{');
-    const combined = [JSON.stringify(status), malformed.body].join('\n');
+    const combined = [
+      JSON.stringify(status),
+      JSON.stringify(action),
+      malformed.body,
+    ].join('\n');
     assert.equal(combined.includes(process.env.M2_SENTINEL_SECRET), false);
     assert.equal(/HERMES_API_KEY|HERMES_BASE_URL|VERCEL_TOKEN|M2_SENTINEL_SECRET|process\.env/i.test(combined), false);
     assert.equal(/\/var\/task|node_modules|at .*\(.+\.js:\d+:\d+\)/i.test(combined), false);
