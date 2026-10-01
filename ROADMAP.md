@@ -68,6 +68,8 @@ The gate is satisfied. This milestone proves the product channel, not Hermes yet
 
 ## M2 — Hermes Plugin End-to-End
 
+**Status:** in progress. The adapter/MCP/runtime-definition/CI/Preview implementation is green on the M2 branch, but the real Render runtime and ChatGPT -> Hermes acceptance gate are not yet verified.
+
 **Goal:** complete one real Hermes task from ChatGPT through our MCP boundary.
 
 **Work:**
