@@ -34,6 +34,6 @@ services:
       - key: HERMES_M2_PROVIDER
         value: openai-api
       - key: HERMES_M2_MODEL
-        value: gpt-5.4
+        value: gpt-5.4-mini
       - key: OPENAI_API_KEY
         sync: false
