@@ -3,9 +3,12 @@
 
 from __future__ import annotations
 
+import hmac
 import http.client
 import json
 import os
+import re
+from urllib.parse import parse_qs, urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -35,7 +38,38 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _authorized(self) -> bool:
-        return self.headers.get("Authorization", "") == f"Bearer {BRIDGE_KEY}"
+        supplied = self.headers.get("Authorization", "")
+        expected = f"Bearer {BRIDGE_KEY}"
+        return hmac.compare_digest(supplied, expected)
+
+    def _route_allowed(self) -> bool:
+        parsed = urlsplit(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query, keep_blank_values=True)
+
+        if self.command == "GET" and path in ("/v1/capabilities", "/v1/models"):
+            return not query
+
+        if path == "/api/sessions":
+            if self.command == "POST":
+                return not query
+            return (
+                self.command == "GET"
+                and query == {"limit": ["1"], "offset": ["0"]}
+            )
+
+        session = r"[A-Za-z0-9._:@-]{1,200}"
+        if self.command == "POST" and re.fullmatch(rf"/api/sessions/{session}/chat", path):
+            return not query
+        if self.command == "GET" and re.fullmatch(rf"/api/sessions/{session}", path):
+            return not query
+        if self.command == "GET" and re.fullmatch(rf"/api/sessions/{session}/messages", path):
+            return query == {
+                "limit": ["200"],
+                "offset": ["0"],
+                "order": ["latest"],
+            }
+        return False
 
     def _health(self) -> None:
         connection = http.client.HTTPConnection(UPSTREAM_HOST, UPSTREAM_PORT, timeout=3)
@@ -59,6 +93,9 @@ class BridgeHandler(BaseHTTPRequestHandler):
     def _proxy(self) -> None:
         if not self._authorized():
             self._json(401, {"error": "unauthorized"})
+            return
+        if not self._route_allowed():
+            self._json(404, {"error": "unsupported_route"})
             return
 
         try:
@@ -119,14 +156,17 @@ class BridgeHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         self._proxy()
 
+    def _method_not_allowed(self) -> None:
+        self._json(405, {"error": "method_not_allowed"})
+
     def do_PATCH(self) -> None:
-        self._proxy()
+        self._method_not_allowed()
 
     def do_PUT(self) -> None:
-        self._proxy()
+        self._method_not_allowed()
 
     def do_DELETE(self) -> None:
-        self._proxy()
+        self._method_not_allowed()
 
 
 if __name__ == "__main__":
