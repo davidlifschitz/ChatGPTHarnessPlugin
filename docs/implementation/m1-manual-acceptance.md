@@ -1,6 +1,22 @@
 # M1 Manual Acceptance — ChatGPT Personal Plugin
 
-Run this only after the deployed HTTPS `/mcp` endpoint passes CI and MCP Inspector.
+Run this only after the deployed HTTPS `/mcp` endpoint passes CI and the deployed MCP smoke test.
+
+## Preflight
+
+The URL supplied to ChatGPT must be a normal, anonymously reachable public HTTPS endpoint. Do not use a temporary Vercel `_vercel_share` URL, a protection-bypass cookie, or another credential-bearing URL as M1 evidence.
+
+If the M1 Preview is protected, add a Vercel Deployment Protection Exception for the dedicated M1 preview/branch domain first. Then run the `M1 deployed MCP smoke` GitHub workflow with the resulting public `https://.../mcp` URL.
+
+Preflight PASS:
+
+- MCP Inspector initializes successfully from outside Vercel.
+- `tools/list` returns exactly `get_m1_status` and `run_m1_canary_action`.
+- the deployed read tool returns the fixed M1 status;
+- the deployed action tool succeeds exactly once;
+- its receipt appears in Vercel runtime logs.
+
+Only after this preflight passes should the endpoint be connected to ChatGPT.
 
 Use the personal plugin name **Harness M1 Test** for these prompts.
 
@@ -89,6 +105,6 @@ PASS:
 
 ## Evidence to record after all six pass
 
-Record the tested deployment identifier/URL, test date, MCP Inspector result, successful read call, successful action receipt, matching Vercel runtime-log evidence, and CI run in `STATE.md`. Do not record credentials, tokens, environment values, or sensitive log payloads.
+Record the tested deployment identifier/URL, test date, deployed MCP smoke result, successful ChatGPT read call, successful ChatGPT action receipt, matching Vercel runtime-log evidence, and CI run in `STATE.md`. Do not record credentials, tokens, environment values, or sensitive log payloads.
 
 Only after that evidence is committed should M1 be marked green in `ROADMAP.md`.
