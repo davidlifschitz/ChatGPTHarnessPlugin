@@ -24,7 +24,9 @@ test('Render Hermes runtime keeps raw API on loopback behind a separate bridge c
 
   assert.match(bridge, /UPSTREAM_HOST = "127\.0\.0\.1"/);
   assert.match(bridge, /HERMES_BRIDGE_KEY/);
-  assert.match(bridge, /Authorization", ""\) == f"Bearer \{BRIDGE_KEY\}"/);
+  assert.match(bridge, /hmac\.compare_digest\(supplied, expected\)/);
+  assert.match(bridge, /unsupported_route/);
+  assert.match(bridge, /method_not_allowed/);
   assert.match(bridge, /"Authorization": f"Bearer \{UPSTREAM_KEY\}"/);
   assert.match(bridge, /self\.path in \("\/health", "\/health\/"\)/);
 
