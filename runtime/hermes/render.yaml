@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: chatgpt-harness-hermes-m2
+    runtime: docker
+    repo: https://github.com/davidlifschitz/ChatGPTHarnessPlugin
+    branch: m2/hermes-e2e
+    region: virginia
+    plan: 1c-2g
+    numInstances: 1
+    dockerfilePath: ./runtime/hermes/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    healthCheckPath: /health
+    maxShutdownDelaySeconds: 60
+    disk:
+      name: hermes-data
+      mountPath: /opt/data
+      sizeGB: 2
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: API_SERVER_ENABLED
+        value: "true"
+      - key: API_SERVER_HOST
+        value: 127.0.0.1
+      - key: API_SERVER_PORT
+        value: 8642
+      - key: API_SERVER_KEY
+        generateValue: true
+      - key: HERMES_BRIDGE_KEY
+        generateValue: true
+      - key: HERMES_DASHBOARD
+        value: "0"
+      - key: HERMES_M2_PROVIDER
+        value: openai-api
+      - key: HERMES_M2_MODEL
+        value: gpt-5.4
+      - key: OPENAI_API_KEY
+        sync: false
