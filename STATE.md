@@ -64,6 +64,13 @@ Do not use a temporary `_vercel_share` URL or protection-bypass cookie as M1 evi
 
 After the exception is active, run the manual `M1 deployed MCP smoke` GitHub workflow against the public `https://.../mcp` URL. It must initialize, list exactly two tools, call the read tool, call the action tool exactly once, and produce a receipt that can be matched in Vercel runtime logs.
 
+Current Vercel references:
+
+- https://vercel.com/changelog/protect-production-deployments-for-free-on-every-plan
+- https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/deployment-protection-exceptions
+
+The September 9, 2026 Vercel changelog states that Deployment Protection Exceptions are free on every plan. The older exception documentation contains the dashboard flow for adding an unprotected preview domain; its older plan-pricing sentence is superseded by that changelog.
+
 ## Verified OpenAI platform state
 
 Current OpenAI developer documentation describes the personal-plugin/developer-mode path for connecting a public HTTPS MCP endpoint and testing MCP tools in ChatGPT.
