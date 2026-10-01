@@ -16,7 +16,7 @@ Render mounts a single 2 GB persistent disk at `/opt/data`, which is Hermes' doc
 
 ## Model configuration
 
-The M2 runtime defaults to the direct OpenAI API provider and `gpt-5.4`. `OPENAI_API_KEY` and `HERMES_BRIDGE_KEY` are declared with `sync: false`; their values must be supplied directly to Render and must never be committed, pasted into prompts, or copied into plugin files.
+The M2 runtime defaults to the direct OpenAI API provider and `gpt-5.4-mini`. `OPENAI_API_KEY` and `HERMES_BRIDGE_KEY` are declared with `sync: false`; their values must be supplied directly to Render and must never be committed, pasted into prompts, or copied into plugin files.
 
 On first boot only, `start-hermes.sh` initializes the persisted Hermes `model` block when it is genuinely unconfigured. An existing configured model is preserved.
 
