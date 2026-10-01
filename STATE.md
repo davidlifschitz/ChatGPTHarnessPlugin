@@ -78,6 +78,13 @@ Authoritative references:
 
 Plan-specific write-tool availability must still be verified empirically in the user's Plus account as part of M1 manual acceptance because current OpenAI documentation surfaces are not fully consistent on that detail.
 
+Specifically, the OpenAI developer homepage currently states that developer mode provides full MCP read/write support in Plus and Pro, while the current OpenAI Help Center page says full MCP is currently available to Business and Enterprise/Edu and describes Pro as read/fetch-only.
+
+Conflicting official references:
+
+- https://developers.openai.com/chatgpt
+- https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt
+
 ## Verified Sign in with ChatGPT state
 
 OpenAI currently lists Hermes Agent among participating apps where eligible Plus/Pro users may choose to use ChatGPT plan usage for AI requests.
