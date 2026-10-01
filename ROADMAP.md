@@ -1,125 +1,175 @@
-# Harness Consumer Layer — Roadmap
+# ChatGPT Harness Plugin — Roadmap
 
-This roadmap follows three rules:
+This roadmap follows four rules:
 
-1. reuse each harness's supported runtime capabilities before building replacements;
-2. control the infrastructure boundary when required for safe machine access, while hiding it from users;
-3. ship one harness at a time rather than pre-generalizing.
+1. use ChatGPT's native plugin/MCP path before building a separate consumer surface;
+2. reuse each harness's supported runtime capabilities before building replacements;
+3. keep the harness/runtime infrastructure invisible to users;
+4. ship one harness at a time rather than pre-generalizing.
 
 Hermes is first. OpenClaw is second.
 
-## M0 — Product Reset
+## M0 — DevDay 2026 Product Reset
 
-**Goal:** remove the generic agent-control-plane assumption while preserving a harness-neutral consumer product boundary.
+**Goal:** replace the outdated assumption that ChatGPT must wait until V2+.
 
-**Gate:** complete. The product is a thin consumer layer; Hermes is the first harness; OpenClaw is next; ChatGPT is V2+; custom runtime semantics require evidence.
+**Status:** complete in planning once ADR 0006 is accepted.
 
-## M1 — Hermes Controlled-Runtime End-to-End
+Verified platform facts:
 
-**Goal:** prove that a real user can use a real Hermes agent from a browser/phone while the product operator—not the user—owns the runtime infrastructure boundary.
+- ChatGPT developer mode provides full MCP read/write tool support on Plus and Pro.
+- A personal plugin can connect to a deployed HTTPS MCP endpoint.
+- Plugins can combine skills and MCP connections.
+- Public plugins can be submitted to the universal directory shared by ChatGPT and Codex.
+- Authenticated MCP servers use OAuth 2.1.
+
+Sources:
+
+- https://developers.openai.com/chatgpt
+- https://developers.openai.com/plugins/quickstart
+- https://developers.openai.com/plugins/concepts/plugins
+- https://developers.openai.com/plugins/deploy/submission
+- https://developers.openai.com/plugins/build/auth
+
+**Gate:** canonical project docs make ChatGPT the primary V1 surface and demote the standalone web UI to diagnostics/admin use.
+
+## M1 — Plus Personal Plugin Proof
+
+**Goal:** prove the new ChatGPT-side path before touching public distribution or multi-user complexity.
 
 **Work:**
-- select the smallest practical cloud VM/container host;
-- deploy the official Hermes runtime with persistent Hermes-native state;
-- authenticate/configure Hermes providers through supported upstream mechanisms, including Nous Portal where useful;
-- enable the Hermes API server with a server-side bearer key;
-- expose it through a restricted machine-to-machine HTTPS path; do not expose the raw agent port openly;
-- point the existing protected Vercel Preview at that machine origin;
+- add a minimal streamable-HTTP MCP endpoint at a stable HTTPS `/mcp` URL;
+- expose one harmless read-only canary tool;
+- expose one controlled write/action canary tool with explicit semantics;
+- connect the endpoint as a personal plugin in ChatGPT developer mode on Plus;
+- verify the tools are visible and invocable from a normal ChatGPT conversation;
+- verify errors are model-readable and no secrets are exposed;
+- keep the existing Vercel REST surface available for direct diagnostics.
+
+**Gate:** from the user's Plus account, ChatGPT successfully invokes our own read tool and controlled write/action tool through the deployed MCP endpoint.
+
+This milestone proves the product channel, not Hermes yet.
+
+## M2 — Hermes Plugin End-to-End
+
+**Goal:** complete one real Hermes task from ChatGPT through our MCP boundary.
+
+**Work:**
+- retain/reuse the existing Hermes connector logic where useful;
+- select the supported Hermes runtime origin for the proof;
+- if managed Hermes Cloud still lacks supported session/chat ingress, deploy official Hermes on operator-controlled persistent infrastructure under ADR 0005;
+- secure server-to-server access to the Hermes API server;
 - verify `/v1/capabilities`, `/v1/models`, and `/api/sessions`;
-- run exactly one minimal real turn, then one tool-capable task;
-- verify session continuity and restart persistence;
-- verify desktop and phone UX;
-- record remaining product/security gaps.
+- implement the smallest goal-level MCP tools needed to start/send/inspect/continue/stop work;
+- run exactly one minimal real Hermes turn;
+- run one tool-capable task;
+- verify session continuity and expected restart persistence;
+- verify ChatGPT never receives `API_SERVER_KEY` or provider credentials;
+- manually test the essential plugin flow on every ChatGPT surface we intend to support; mobile availability remains a release requirement to verify, not an assumption.
 
-**Gate:** a protected deployed browser client completes a real Hermes task end-to-end on phone and desktop; expected Hermes state survives restart; the user sees no VPS/container/key/tunnel administration.
+Hermes references:
 
-Managed Hermes Cloud is not required for this gate. It may be revisited if Nous exposes a supported machine-ingress contract.
+- https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
+- https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration
+- https://hermes-agent.nousresearch.com/docs/reference/environment-variables
 
-## M2 — Minimal Consumer Product Layer
+**Gate:** a normal ChatGPT conversation delegates a real task to Hermes through our plugin and receives the result, with no harness infrastructure exposed to the user.
 
-**Goal:** implement only the consumer gaps exposed by M1.
+## M3 — User Authentication and Isolation
 
-Potential work, only when M1 proves it is needed:
-- consumer sign-in/onboarding;
-- user-to-harness/runtime mapping;
-- server-side credential mediation;
-- simplified agent creation/selection;
-- product entitlements;
-- hiding harness administration;
-- light frontend customization;
-- a minimal Hermes connector interface;
-- minimal runtime lifecycle automation for the single-harness product.
-
-**Gate:** each custom component corresponds to a documented user/upstream gap, normal users never handle harness credentials/infrastructure, and Hermes transport details stay isolated.
-
-## M3 — Multi-User Isolation and Provisioning
-
-**Goal:** safely support more than one unrelated consumer.
+**Goal:** safely support more than one unrelated user.
 
 **Work:**
-- choose the supported Hermes isolation boundary based on real testing (profiles, dedicated runtimes, session keys, or a combination);
-- automate user-to-runtime/agent provisioning where necessary;
-- enforce authorization before proxying to Hermes;
-- verify session/memory/credential isolation;
-- define deletion/offboarding and resource cleanup;
-- establish resource/cost limits.
+- implement MCP OAuth 2.1 using a supported identity provider;
+- publish protected-resource/auth metadata required by the MCP authorization spec;
+- scope every tool request to the authenticated user;
+- choose and verify the Hermes isolation boundary (profiles, dedicated runtimes, stable session keys, or a combination);
+- enforce user-to-runtime/session authorization before calling Hermes;
+- verify two test users cannot access each other's sessions, memory, credentials, filesystem/tool context, or controls;
+- define deletion/offboarding and cleanup;
+- add resource/cost limits where required.
 
-**Gate:** two test users cannot access each other's agent, sessions, memory, credentials, filesystem/tool context, or administrative controls.
+OpenAI auth reference:
 
-## M4 — Hermes Production Web MVP
+- https://developers.openai.com/plugins/build/auth
 
-**Goal:** ship a stable mobile-friendly public product using Hermes as the first harness.
+**Gate:** two independent users can use the plugin without cross-user access or secret leakage.
 
-**Work:**
-- production HTTPS deployment;
-- safe runtime/secret management;
-- reliable harness process supervision and persistent storage;
-- rate/abuse controls where required;
-- observability without leaking sensitive content/secrets;
-- onboarding/error UX;
-- privacy/retention documentation;
-- rollback/recovery procedures;
-- real-Hermes regression/E2E coverage;
-- repeated desktop/phone testing.
+## M4 — Public Plugin Package and Submission
 
-**Gate:** a supported user can sign up/connect, open the product on a phone, use a Hermes-backed agent, resume work, and use tools without knowing where or how Hermes is hosted.
-
-## M5 — OpenClaw Second Harness
-
-**Goal:** add OpenClaw as the second useful harness and validate the connector boundary.
+**Goal:** turn the working private integration into a publishable product.
 
 **Work:**
-- verify current OpenClaw runtime/programmatic surfaces;
-- deploy it on an operator-controlled runtime boundary appropriate to OpenClaw;
+- package the plugin with `plugin.json`, skills if justified, and MCP configuration;
+- choose a non-generic public product name before submission;
+- complete developer identity verification;
+- provide required website/support/privacy/terms URLs;
+- prepare a fully featured review account if authenticated review requires it;
+- pass package validation and MCP tool scanning;
+- document retention/security behavior;
+- add production observability without sensitive payload leakage;
+- run reliability and abuse/error-path testing;
+- submit for review;
+- publish only after approval and final manual validation.
+
+Sources:
+
+- https://developers.openai.com/plugins/build/plugins
+- https://developers.openai.com/plugins/deploy/submission
+- https://developers.openai.com/plugins/plugin-guidelines
+
+**Gate:** the plugin is approved and publishable in the universal directory, and the supported end-user path works without developer mode.
+
+## M5 — Events and Native Plugin UX
+
+**Goal:** improve the agent experience after the core path is reliable.
+
+Potential work, only when justified:
+- MCP Events for completion/progress notifications;
+- optional plugin UI for agent/session/status views;
+- better account switching/profile display;
+- richer confirmation flows;
+- file/result viewers where useful.
+
+Event reference:
+
+- https://developers.openai.com/plugins/build/mcp-events
+
+**Gate:** each enhancement removes a measured user friction rather than duplicating ChatGPT or harness behavior.
+
+## M6 — OpenClaw Second Harness
+
+**Goal:** add OpenClaw and validate the adapter boundary.
+
+**Work:**
+- verify current OpenClaw programmatic/runtime surfaces;
 - document auth, lifecycle, state, streaming, tools, and isolation without assuming Hermes equivalence;
-- implement the smallest connector needed by the existing consumer product;
-- revise the connector where real differences require it;
+- implement the smallest adapter needed by the existing MCP tool outcomes;
+- revise the adapter contract where real differences require it;
 - keep OpenClaw-native durable state upstream;
-- verify the same core user journey where supported.
+- verify the same core ChatGPT journey where supported.
 
-**Gate:** a user can use an OpenClaw-backed agent through the same product without a forked account/frontend system or duplicated generic control plane.
+**Gate:** the plugin can route a supported user journey to either Hermes or OpenClaw without a forked ChatGPT/product identity system or a duplicated generic control plane.
 
-## M6 — Product Economics and Growth
+## M7 — Product Economics and Growth
 
-**Goal:** add commercial and lifecycle systems after the product and second-harness architecture are demonstrated.
+**Goal:** add commercial systems after the product and second-harness architecture are demonstrated.
 
 Possible work:
 - billing/subscriptions;
 - usage/entitlements;
 - product analytics;
-- referral/onboarding improvements;
-- lifecycle automation and capacity orchestration based on measured usage.
+- onboarding improvements;
+- lifecycle/capacity automation based on measured usage.
 
 **Gate:** economics and lifecycle behavior are measurable and users never manage harness infrastructure manually.
 
-## V2+ — Additional Distribution Channels
+## Standalone web client
 
-ChatGPT plugin / Apps SDK / MCP is a future client channel, not a core architecture dependency. Other channels may include native mobile, Telegram, or partner integrations.
+The existing Vercel UI remains a diagnostic/admin/test surface throughout M1–M3.
 
-## Additional harnesses
-
-After Hermes and OpenClaw, add another harness only for concrete capability, deployment, cost, or distribution value.
+A consumer standalone web app is **not** on the critical path. Promote it back to a primary channel only if a verified plugin limitation or product requirement justifies a new ADR.
 
 ## Sequencing rule
 
-**Prove one operator-controlled Hermes user journey first. Automate only what that journey proves necessary. Then add OpenClaw and generalize from evidence.**
+**Prove ChatGPT Plus -> our MCP endpoint first. Then prove ChatGPT -> MCP -> Hermes. Add auth/isolation. Publish. Only then add OpenClaw and generalize from evidence.**
