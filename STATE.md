@@ -8,9 +8,9 @@ This file records verified reality, not intended future behavior.
 
 **M1 — Plus Personal Plugin Proof**
 
-Status: **implementation and automated protocol verification complete; public Vercel ingress and ChatGPT manual acceptance still pending**
+Status: **green — Plus personal plugin read/action proof completed on 2026-10-01**
 
-M1 is **not green** yet.
+M1 is **green**. The ChatGPT personal-plugin product channel is proven end-to-end. Hermes remains intentionally out of scope until M2.
 
 ## Verified M1 implementation state
 
@@ -27,24 +27,28 @@ PR #7 (`m1/personal-plugin-proof`) now contains the narrow M1 implementation:
 - neither M1 tool calls Hermes, reads user data, reads environment variables, accesses files/accounts/email, or invokes an external service;
 - the existing Hermes diagnostic code remains separate and unchanged.
 
-Verified CI evidence for commit `10c4e6c63fdb2bafe1148315b5a3844e942964f7`:
+Verified final CI evidence for commit `d5e770c431d078aa1f49c3fc724845fb3ff62b65`:
 
-- GitHub Actions run `36823692416` completed successfully;
-- the six Python Hermes-probe tests passed;
-- Node ran as `v22.23.3`;
-- `npm test` passed 18/18 JavaScript tests, including all MCP protocol/schema/annotation/error/secret-leakage tests;
-- `npm run check` passed.
+- GitHub Actions run `36875205687` completed successfully;
+- the repository test workflow passed on the M1 branch;
+- earlier M1 CI validation also established six passing Python Hermes-probe tests, Node `v22.23.3`, 18/18 passing JavaScript tests, and a passing `npm run check`.
 
-Verified deployment evidence for the same commit:
+Verified final deployment and ChatGPT evidence:
 
-- Vercel deployment `dpl_6Qk7v9kd6SGbZQAvKdULcWe4x7uT` reached `READY`;
-- deployment URL: `https://hermes-consumer-layer-m1-nkv17rxsn-davidlifschitzs-projects.vercel.app`;
-- the branch alias reported by Vercel was `hermes-consumer-layer-m1-git-m1-80ea8b-davidlifschitzs-projects.vercel.app`;
-- an authenticated Vercel-side GET to `/mcp` reached the MCP handler and returned the expected clean HTTP 405 JSON-RPC method error with `Cache-Control: no-store` and the repository's existing security headers.
+- Vercel deployment `dpl_5nHGYvAAJBeixdmKrdxvRRfoheas` reached `READY` for branch commit `d5e770c431d078aa1f49c3fc724845fb3ff62b65`;
+- stable branch alias: `hermes-consumer-layer-m1-git-m1-80ea8b-davidlifschitzs-projects.vercel.app`;
+- a private USER-scope ChatGPT plugin, `chatgpt-harness-plugin` version `0.1.0`, was created and connected to the deployed M1 endpoint;
+- from the user's actual ChatGPT Plus account, `get_m1_status` returned M1 status `ready` with version `m1-canary-v1`;
+- from the user's actual ChatGPT Plus account, `run_m1_canary_action` ran exactly once with label `david-manual-test` and returned receipt `m1_15808f73-b006-427b-aef2-4a31d393264c`;
+- Vercel runtime logs independently matched that exact receipt at `POST /mcp 200` with event `m1_canary_action` and `label_length: 17`;
+- the empty-label action test was rejected by input validation and returned no successful receipt;
+- a follow-up status check invoked only the read-only status tool;
+- `17 × 23` returned `391` without invoking a plugin tool;
+- the sensitive-server-data prompt invoked no plugin tool and exposed no environment variables, secrets, credentials, or deployment configuration.
 
-That authenticated Vercel-side check proves the deployment/rewrite/function path exists. It does **not** prove that an anonymous external MCP client can reach it.
+These observations satisfy the six-prompt manual acceptance suite and the M1 read/action gate.
 
-## Verified M1 blocker
+## Resolved M1 blocker
 
 A live GitHub Actions MCP Inspector run (`36823909159`) attempted to initialize against the deployed Preview URL from outside Vercel.
 
@@ -58,11 +62,7 @@ For CI/non-interactive runs use --stored-auth-only.
 
 This is consistent with the Preview being behind Vercel Deployment Protection. No deployed M1 tool call or live Vercel canary receipt was produced by that run.
 
-The next external prerequisite is therefore to make one dedicated M1 HTTPS endpoint anonymously reachable, preferably by adding a Vercel Deployment Protection Exception for the dedicated M1 preview/branch domain rather than weakening protection for unrelated deployments.
-
-Do not use a temporary `_vercel_share` URL or protection-bypass cookie as M1 evidence: ChatGPT needs a normal public HTTPS MCP endpoint.
-
-After the exception is active, run the manual `M1 deployed MCP smoke` GitHub workflow against the public `https://.../mcp` URL. It must initialize, list exactly two tools, call the read tool, call the action tool exactly once, and produce a receipt that can be matched in Vercel runtime logs.
+That ingress blocker was subsequently resolved for the dedicated M1 branch endpoint. The private ChatGPT plugin initialized against the normal HTTPS endpoint, discovered the M1 tools, and successfully exercised both the read and controlled-action paths. No temporary `_vercel_share` URL or protection-bypass cookie was used as acceptance evidence.
 
 Current Vercel references:
 
@@ -154,7 +154,7 @@ Therefore the project still must verify a supported machine path from our MCP se
 - Hermes is the MVP harness; OpenClaw is planned second.
 - The repository contains `tools/hermes_probe.py` for Hermes capabilities/model/session verification with opt-in chat.
 - The repository contains a Vercel diagnostic surface with server-only `/api/status` and `/api/chat` routes.
-- PR #7 adds the separate M1 `/api/mcp` route and `/mcp` rewrite.
+- M1 added the separate `/api/mcp` route and `/mcp` rewrite.
 - Browser code is designed not to contain Hermes server credentials.
 - The repository does not yet contain a public plugin package/manifest.
 
@@ -183,13 +183,6 @@ It does **not** replace the upstream-first harness model or ADR 0005's runtime-b
 
 ## Not yet verified
 
-- anonymous external MCP initialization through the deployed Vercel endpoint;
-- deployed `tools/list` returning exactly the two M1 tools to an external client;
-- a deployed read-tool call;
-- a deployed action-tool call and matching Vercel runtime-log receipt;
-- successful personal-plugin connection from the user's Plus account;
-- one read tool call from ChatGPT to our MCP server;
-- one controlled write/action tool call from ChatGPT to our MCP server;
 - plugin -> MCP -> Hermes connectivity;
 - successful real Hermes session chat through the plugin;
 - a successful tool-capable Hermes task through the plugin;
@@ -203,17 +196,9 @@ It does **not** replace the upstream-first harness model or ADR 0005's runtime-b
 
 ## Current critical path
 
-To finish M1:
+M1 is complete. Stop M1 work here.
 
-1. Add a Vercel Deployment Protection Exception for one dedicated M1 preview/branch domain so `/mcp` is anonymously reachable over normal HTTPS.
-2. Run the `M1 deployed MCP smoke` workflow against that public URL.
-3. Verify the smoke-run action receipt in Vercel runtime logs.
-4. Add the endpoint as the user's personal plugin in ChatGPT developer mode.
-5. Complete the six prompts in `docs/implementation/m1-manual-acceptance.md`.
-6. Record the successful deployment, Inspector, read, action receipt, runtime-log, CI, and human-test evidence here.
-7. Only then mark M1 green in `ROADMAP.md`.
-
-Then stop M1 work. Hermes begins in M2.
+The next milestone is M2: prove one real Hermes task through the now-verified ChatGPT -> personal plugin -> MCP boundary. Do not expand M1 with Hermes, OAuth, OpenClaw, public submission, or unrelated product work.
 
 ## State-update rule
 
