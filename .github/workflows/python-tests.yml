@@ -24,11 +24,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run Hermes probe unit tests
-        run: python -m unittest -v tests.test_hermes_probe
+      - name: Run Python unit tests
+        run: python -m unittest -v tests.test_hermes_probe tests.test_m2_bridge
 
       - name: Compile Hermes probe
-        run: python -m py_compile tools/hermes_probe.py tests/test_hermes_probe.py runtime/hermes/bridge.py
+        run: python -m py_compile tools/hermes_probe.py tests/test_hermes_probe.py tests/test_m2_bridge.py runtime/hermes/bridge.py
 
       - name: Verify Hermes probe CLI help
         run: python tools/hermes_probe.py --help
