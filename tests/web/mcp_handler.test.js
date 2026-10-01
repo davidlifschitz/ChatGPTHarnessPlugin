@@ -201,7 +201,11 @@ test('M1 canary action still returns unique receipts and does not log the label'
 
 test('M2 tools create, run, and inspect the same Hermes session without leaking raw tool data', async () => {
   const requests = [];
-  await withHermesServer((req, res) => {
+  const logs = [];
+  const originalLog = console.log;
+  console.log = (...args) => logs.push(args.map(String).join(' '));
+  try {
+    await withHermesServer((req, res) => {
     requests.push(`${req.method} ${req.url}`);
     if (req.url === '/api/sessions' && req.method === 'POST') {
       readJson(req).then(() => json(res, 201, {
@@ -271,12 +275,19 @@ test('M2 tools create, run, and inspect the same Hermes session without leaking 
       await client.close();
     }
   });
-  assert.deepEqual(requests, [
-    'POST /api/sessions',
-    'POST /api/sessions/api_m2_123/chat',
-    'GET /api/sessions/api_m2_123',
-    'GET /api/sessions/api_m2_123/messages?limit=200&offset=0&order=latest',
-  ]);
+    assert.deepEqual(requests, [
+      'POST /api/sessions',
+      'POST /api/sessions/api_m2_123/chat',
+      'GET /api/sessions/api_m2_123',
+      'GET /api/sessions/api_m2_123/messages?limit=200&offset=0&order=latest',
+    ]);
+    const joinedLogs = logs.join('\n');
+    assert.match(joinedLogs, /m2_hermes_session_started/);
+    assert.match(joinedLogs, /m2_hermes_turn/);
+    assert.equal(joinedLogs.includes('api_m2_123'), false);
+  } finally {
+    console.log = originalLog;
+  }
 });
 
 test('controlled invalid Hermes session fails model-readably with no stack or secret leakage', async () => {
