@@ -71,7 +71,7 @@ This milestone proves the product channel, not Hermes yet.
 - run one tool-capable task;
 - verify session continuity and expected restart persistence;
 - verify ChatGPT never receives `API_SERVER_KEY` or provider credentials;
-- manually test the essential plugin flow on every ChatGPT surface we intend to support; mobile availability remains a release requirement to verify, not an assumption.
+- manually test the essential plugin flow on supported ChatGPT surfaces; current OpenAI Help Center guidance says MCP apps are web-only, so mobile is a future platform re-check rather than an M2 acceptance gate.
 
 Hermes references:
 
