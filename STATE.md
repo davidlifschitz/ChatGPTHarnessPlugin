@@ -6,11 +6,57 @@ This file records verified reality, not intended future behavior.
 
 ## Current milestone
 
-**M1 — Plus Personal Plugin Proof**
+**M2 — Hermes Plugin End-to-End**
 
-Status: **green — Plus personal plugin read/action proof completed on 2026-10-01**
+Status: **in progress — implementation/CI/Preview green; real Hermes end-to-end gate not yet verified**
 
-M1 is **green**. The ChatGPT personal-plugin product channel is proven end-to-end. Hermes remains intentionally out of scope until M2.
+M1 remains green. M2 now has a tested Hermes session adapter, a deliberately small ChatGPT-facing MCP surface, a restricted operator-controlled Hermes runtime definition, and a manual-only live smoke/acceptance suite. The real Render runtime has not been provisioned, the M2 Vercel Preview has not been wired to that runtime, and no M2 live Hermes task has yet been accepted through the private ChatGPT plugin.
+
+## Verified M2 implementation state
+
+Draft PR #8 (`m2/hermes-e2e`) contains the current M2 implementation.
+
+Verified at commit `51130e5cda2ec5cf07f2b1da1d0df807324385fc`:
+
+- the M1 tools remain present with their existing structured M1 contract;
+- the MCP server adds exactly three Hermes-facing tools: `start_hermes_session`, `send_hermes_task`, and `get_hermes_session`;
+- the server-side Hermes adapter uses Hermes-native `/api/sessions`, session chat, and persisted session messages instead of mirroring conversation state;
+- the Hermes adapter validates session/task inputs, bounds returned text/tool names, uses explicit request timeouts, and emits sanitized model-readable errors without upstream error bodies;
+- the M2 action logger records an opaque M2 request ID and session-ID length, not prompts, credentials, raw tool payloads, or session IDs;
+- the operator-controlled runtime definition uses the official `nousresearch/hermes-agent:latest` image and a persistent `/opt/data` disk;
+- the raw Hermes API is configured for container loopback only, while the public bridge uses a separate bearer credential and a narrow allowlist limited to the M2/diagnostic routes;
+- the bridge blocks unrelated config/env/run/mutation routes and does not expose the internal Hermes `API_SERVER_KEY`;
+- `runtime/hermes/render.yaml` declares the model-provider key and bridge key as external secret placeholders; no credential values are committed;
+- `.github/workflows/m2-live-smoke.yml` is manual-only and requires an explicit live-action confirmation before creating a real Hermes session/model/tool call;
+- `docs/implementation/m2-manual-acceptance.md` defines the M1 regressions, real minimal turn, real tool-capable turn, same-session continuation, controlled failure, secret-isolation check, and restart-persistence gate.
+
+Verified CI/deployment evidence for that commit:
+
+- GitHub Actions run `36889721152` completed successfully;
+- 11 Python unit tests passed, including the Hermes probe and restricted bridge boundary tests;
+- Python compilation and the runtime shell syntax check passed;
+- 28/28 Node web/MCP/runtime tests passed;
+- server-side JavaScript syntax checks passed;
+- Vercel Preview deployment `dpl_Cb3AAUvRwraNwyMVxVqm8mjJbZLH` reached `READY`;
+- its branch alias is `hermes-consumer-layer-m1-git-m2-0159fc-davidlifschitzs-projects.vercel.app`.
+
+## M2 external acceptance still required
+
+The following are **not yet verified** and therefore M2 is not green:
+
+- a paid persistent Render Hermes service actually provisioned from the M2 runtime definition;
+- live Render health against the real Hermes process;
+- the M2 Vercel Preview configured with the Render service origin and bridge credential;
+- a normal public/unprotected M2 `/mcp` endpoint reachable by MCP Inspector/ChatGPT;
+- the private ChatGPT plugin updated/released against the M2 endpoint;
+- a real Hermes minimal turn;
+- a real Hermes tool-capable turn with independently observed tool-use evidence;
+- same-session continuation through ChatGPT;
+- controlled invalid-session behavior against the real runtime;
+- runtime restart/redeploy with the same Hermes session still readable afterward;
+- final M1 read/action regressions through the M2 private plugin.
+
+Do not mark M2 green or merge PR #8 until every item above is directly observed and recorded without secret values.
 
 ## Verified M1 implementation state
 
