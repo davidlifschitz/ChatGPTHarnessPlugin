@@ -121,12 +121,22 @@ test('modern discovery exposes exact M2 schemas and safety annotations', async (
       readOnlyHint: true, destructiveHint: false,
       idempotentHint: true, openWorldHint: false,
     });
+    assert.equal(status.inputSchema.type, 'object');
+    assert.deepEqual(status.inputSchema.required || [], []);
+    assert.deepEqual(status.inputSchema.properties, {});
+    assert.equal(status.inputSchema.additionalProperties, false);
 
     const action = byName(tools, 'run_m1_canary_action');
     assert.deepEqual(action.annotations, {
       readOnlyHint: false, destructiveHint: false,
       idempotentHint: false, openWorldHint: false,
     });
+    assert.equal(action.inputSchema.type, 'object');
+    assert.deepEqual(action.inputSchema.required, ['label']);
+    assert.equal(action.inputSchema.properties.label.type, 'string');
+    assert.equal(action.inputSchema.properties.label.minLength, 1);
+    assert.equal(action.inputSchema.properties.label.maxLength, 80);
+    assert.equal(action.inputSchema.additionalProperties, false);
 
     const start = byName(tools, 'start_hermes_session');
     assert.deepEqual(start.annotations, {
@@ -187,6 +197,12 @@ test('M1 canary action still returns unique receipts and does not log the label'
     const second = await client.callTool({
       name: 'run_m1_canary_action', arguments: {label: 'david-manual-test'},
     });
+    assert.equal(first.isError, undefined);
+    assert.equal(second.isError, undefined);
+    assert.equal(first.structuredContent.success, true);
+    assert.equal(first.structuredContent.label, 'david-manual-test');
+    assert.equal(second.structuredContent.success, true);
+    assert.equal(second.structuredContent.label, 'david-manual-test');
     assert.match(first.structuredContent.receipt_id, /^m1_[0-9a-f-]{36}$/);
     assert.match(second.structuredContent.receipt_id, /^m1_[0-9a-f-]{36}$/);
     assert.notEqual(first.structuredContent.receipt_id, second.structuredContent.receipt_id);
