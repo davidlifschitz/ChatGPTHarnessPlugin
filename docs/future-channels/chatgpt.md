@@ -1,24 +1,40 @@
-# Future Channel — ChatGPT
+# Historical Channel Note — ChatGPT
 
-Status: Deferred to V2+
+Status: **Promoted to V1 by ADR 0006 on 2026-09-30**
 
-ChatGPT may become a distribution channel after the standalone consumer web product is working and production-shaped.
+This file is retained so the repository preserves the decision history that previously deferred ChatGPT to V2+.
 
-## V1 rule
+That deferral is no longer active.
 
-Do not introduce GPT, GPT Action, Apps SDK, MCP, plugin-publication, or ChatGPT-specific state into V1 architecture.
+## Current decision
 
-## Future integration principle
+ChatGPT plugin/MCP is the primary V1 consumer channel.
 
-A future ChatGPT client should reuse the same consumer identity/entitlement boundary and supported Hermes APIs that power the standalone product. It should remain a thin channel adapter rather than become the owner of agent state or infrastructure credentials.
+The current path is:
 
-## Re-entry criteria
+```text
+ChatGPT Plus developer mode
+  -> personal plugin
+  -> deployed HTTPS MCP service
+  -> Hermes adapter
+  -> Hermes runtime
+```
 
-Resume this work only after:
+After the private path and multi-user isolation are proven, the plugin is packaged and submitted for public distribution.
 
-1. a real Hermes browser experience works end-to-end;
-2. multi-user identity/isolation is understood;
-3. production credential mediation exists if required;
-4. the value of a ChatGPT channel outweighs current platform/distribution constraints.
+See:
 
-When this channel is restarted, re-check current OpenAI product/API capabilities rather than relying on old assumptions.
+- `../../PROJECT.md`
+- `../../ROADMAP.md`
+- `../../ARCHITECTURE.md`
+- `../decisions/0006-chatgpt-plugin-primary-channel.md`
+
+## Why the old decision changed
+
+OpenAI now documents full MCP read/write support in ChatGPT developer mode for Plus and Pro, personal plugin testing, and public plugin distribution through the universal directory.
+
+Sources:
+
+- https://developers.openai.com/chatgpt
+- https://developers.openai.com/plugins/quickstart
+- https://developers.openai.com/plugins/deploy/submission
