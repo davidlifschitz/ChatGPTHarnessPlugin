@@ -73,8 +73,13 @@ PY
 
 hermes gateway run &
 gateway_pid=$!
+bridge_pid=""
 
 cleanup() {
+  if [ -n "$bridge_pid" ]; then
+    kill "$bridge_pid" 2>/dev/null || true
+    wait "$bridge_pid" 2>/dev/null || true
+  fi
   kill "$gateway_pid" 2>/dev/null || true
   wait "$gateway_pid" 2>/dev/null || true
 }
@@ -82,4 +87,14 @@ cleanup() {
 trap 'cleanup; exit 143' TERM INT HUP
 trap 'cleanup' EXIT
 
-exec /opt/hermes/.venv/bin/python /opt/m2/bridge.py
+/opt/hermes/.venv/bin/python /opt/m2/bridge.py &
+bridge_pid=$!
+
+set +e
+wait "$bridge_pid"
+status=$?
+set -e
+
+trap - EXIT
+cleanup
+exit "$status"
