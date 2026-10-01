@@ -6,6 +6,7 @@ on:
       - main
       - product-reset/**
       - m1/**
+      - m2/**
   pull_request:
 
 permissions:
