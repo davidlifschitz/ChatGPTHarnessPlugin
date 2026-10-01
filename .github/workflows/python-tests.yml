@@ -33,6 +33,9 @@ jobs:
       - name: Verify Hermes probe CLI help
         run: python tools/hermes_probe.py --help
 
+      - name: Check Hermes runtime shell syntax
+        run: sh -n runtime/hermes/start-hermes.sh
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
