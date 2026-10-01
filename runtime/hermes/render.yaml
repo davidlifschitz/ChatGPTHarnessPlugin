@@ -28,7 +28,7 @@ services:
       - key: API_SERVER_KEY
         generateValue: true
       - key: HERMES_BRIDGE_KEY
-        generateValue: true
+        sync: false
       - key: HERMES_DASHBOARD
         value: "0"
       - key: HERMES_M2_PROVIDER
