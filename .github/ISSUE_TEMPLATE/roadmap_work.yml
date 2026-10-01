@@ -1,19 +1,20 @@
-name: Hermes consumer roadmap work
-description: Track work that advances the upstream-first consumer product roadmap.
-title: "[Hermes Consumer] "
+name: ChatGPT harness roadmap work
+description: Track work that advances the plugin-first, upstream-harness-first roadmap.
+title: "[Harness Plugin] "
 body:
   - type: dropdown
     id: milestone
     attributes:
       label: Roadmap milestone
       options:
-        - M0 — Product Reset
-        - M1 — Thin Consumer Path
-        - M2 — Minimal Consumer Product Layer
-        - M3 — Multi-User Isolation and Provisioning
-        - M4 — Production Web Release
-        - M5 — Product Economics and Growth Layer
-        - V2+ — Additional Distribution Channels
+        - M0 — DevDay 2026 Product Reset
+        - M1 — Plus Personal Plugin Proof
+        - M2 — Hermes Plugin End-to-End
+        - M3 — User Authentication and Isolation
+        - M4 — Public Plugin Package and Submission
+        - M5 — Events and Native Plugin UX
+        - M6 — OpenClaw Second Harness
+        - M7 — Product Economics and Growth
     validations:
       required: true
   - type: dropdown
@@ -22,13 +23,14 @@ body:
       label: Surface
       multiple: true
       options:
-        - Consumer web
-        - Hermes API integration
+        - ChatGPT plugin package
+        - MCP service
+        - Hermes adapter / API
         - Nous Portal / Hermes Cloud
-        - Identity / credential mediation
-        - Provisioning / isolation
-        - Infrastructure
-        - Future channel
+        - OAuth / identity / authorization
+        - Runtime infrastructure
+        - OpenClaw
+        - Diagnostics web surface
     validations:
       required: true
   - type: textarea
@@ -41,8 +43,8 @@ body:
   - type: textarea
     id: upstream_gap
     attributes:
-      label: Upstream capability and gap
-      description: What does Hermes/Nous already provide, and what verified gap requires custom work here?
+      label: Native capability and verified gap
+      description: What do OpenAI and the selected harness already provide, and what verified gap requires custom work here?
     validations:
       required: true
   - type: textarea
@@ -64,7 +66,7 @@ body:
     id: validation
     attributes:
       label: Validation plan
-      description: Tests, commands, or real-Hermes end-to-end flows that prove the acceptance criteria.
+      description: Tests, commands, or real ChatGPT/MCP/Hermes flows that prove the acceptance criteria.
     validations:
       required: true
   - type: checkboxes
@@ -74,9 +76,9 @@ body:
       options:
         - label: I checked PROJECT.md, STATE.md, ROADMAP.md, and ARCHITECTURE.md.
           required: true
-        - label: I verified whether Hermes/Nous already provides the proposed capability before adding custom infrastructure.
+        - label: I verified whether OpenAI or the selected harness already provides the proposed capability before adding custom infrastructure.
           required: true
-        - label: This work does not put credentials or tokens into browser code, source, prompts, logs, issues, or model-visible results.
+        - label: This work does not put credentials or tokens into plugin packages, browser code, source, prompts, logs, issues, or model-visible results.
           required: true
         - label: Unsupported or unverified upstream capabilities will be reported explicitly rather than fabricated.
           required: true
