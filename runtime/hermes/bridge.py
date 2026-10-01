@@ -8,7 +8,7 @@ import http.client
 import json
 import os
 import re
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -44,10 +44,12 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
     def _route_allowed(self) -> bool:
         parsed = urlsplit(self.path)
-        path = parsed.path
+        path = unquote(parsed.path)
         query = parse_qs(parsed.query, keep_blank_values=True)
 
         if self.command == "GET" and path in ("/v1/capabilities", "/v1/models"):
+            return not query
+        if self.command == "POST" and path == "/v1/chat/completions":
             return not query
 
         if path == "/api/sessions":
