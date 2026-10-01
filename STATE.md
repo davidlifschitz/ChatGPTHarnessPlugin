@@ -16,7 +16,7 @@ M1 remains green. M2 now has a tested Hermes session adapter, a deliberately sma
 
 Draft PR #8 (`m2/hermes-e2e`) contains the current M2 implementation.
 
-Verified at commit `51130e5cda2ec5cf07f2b1da1d0df807324385fc`:
+Verified at commit `31f3635d935a48041fd972cdc9877628fc2cbef2`:
 
 - the M1 tools remain present with their existing structured M1 contract;
 - the MCP server adds exactly three Hermes-facing tools: `start_hermes_session`, `send_hermes_task`, and `get_hermes_session`;
@@ -27,17 +27,18 @@ Verified at commit `51130e5cda2ec5cf07f2b1da1d0df807324385fc`:
 - the raw Hermes API is configured for container loopback only, while the public bridge uses a separate bearer credential and a narrow allowlist limited to the M2/diagnostic routes;
 - the bridge blocks unrelated config/env/run/mutation routes and does not expose the internal Hermes `API_SERVER_KEY`;
 - `runtime/hermes/render.yaml` declares the model-provider key and bridge key as external secret placeholders; no credential values are committed;
+- the proof runtime defaults to `gpt-5.4-mini`, which supports Chat Completions and function calling while reducing API-token cost relative to the earlier `gpt-5.4` default;
 - `.github/workflows/m2-live-smoke.yml` is manual-only and requires an explicit live-action confirmation before creating a real Hermes session/model/tool call;
 - `docs/implementation/m2-manual-acceptance.md` defines the M1 regressions, real minimal turn, real tool-capable turn, same-session continuation, controlled failure, secret-isolation check, and restart-persistence gate.
 
 Verified CI/deployment evidence for that commit:
 
-- GitHub Actions run `36889721152` completed successfully;
+- GitHub Actions run `36890550131` completed successfully;
 - 11 Python unit tests passed, including the Hermes probe and restricted bridge boundary tests;
 - Python compilation and the runtime shell syntax check passed;
 - 28/28 Node web/MCP/runtime tests passed;
 - server-side JavaScript syntax checks passed;
-- Vercel Preview deployment `dpl_Cb3AAUvRwraNwyMVxVqm8mjJbZLH` reached `READY`;
+- Vercel Preview deployment `dpl_5squkXbwTBYTka5aS3gNZ5ctjefX` reached `READY`;
 - its branch alias is `hermes-consumer-layer-m1-git-m2-0159fc-davidlifschitzs-projects.vercel.app`.
 
 ## M2 external acceptance still required
