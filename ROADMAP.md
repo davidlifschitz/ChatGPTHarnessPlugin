@@ -15,10 +15,12 @@ Hermes is first. OpenClaw is second.
 
 **Status:** complete in planning once ADR 0006 is accepted.
 
-Verified platform facts:
+Current OpenAI platform evidence:
 
-- ChatGPT developer mode provides full MCP read/write tool support on Plus and Pro.
-- A personal plugin can connect to a deployed HTTPS MCP endpoint.
+- OpenAI's developer homepage states that ChatGPT developer mode provides full MCP support for read and write tools in ChatGPT Plus and Pro.
+- OpenAI's current Help Center page for developer mode/full MCP gives conflicting plan-specific availability: it says full MCP is currently available to Business and Enterprise/Edu, and that Pro can connect read/fetch MCPs.
+- Because those official surfaces conflict, Plus write/action availability is an empirical M1 acceptance gate rather than a repository assumption.
+- OpenAI's plugin quickstart documents a personal plugin connecting to a deployed public HTTPS MCP endpoint and being invoked from ChatGPT Work on the web.
 - Plugins can combine skills and MCP connections.
 - Public plugins can be submitted to the universal directory shared by ChatGPT and Codex.
 - Authenticated MCP servers use OAuth 2.1.
@@ -26,6 +28,7 @@ Verified platform facts:
 Sources:
 
 - https://developers.openai.com/chatgpt
+- https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt
 - https://developers.openai.com/plugins/quickstart
 - https://developers.openai.com/plugins/concepts/plugins
 - https://developers.openai.com/plugins/deploy/submission
@@ -35,20 +38,33 @@ Sources:
 
 ## M1 — Plus Personal Plugin Proof
 
-**Goal:** prove the new ChatGPT-side path before touching public distribution or multi-user complexity.
+**Goal:** empirically prove the intended ChatGPT-side path on the user's actual Plus account before touching public distribution or multi-user complexity.
+
+**Status:** complete / green as of 2026-10-01.
 
 **Work:**
 - add a minimal streamable-HTTP MCP endpoint at a stable HTTPS `/mcp` URL;
 - expose one harmless read-only canary tool;
 - expose one controlled write/action canary tool with explicit semantics;
-- connect the endpoint as a personal plugin in ChatGPT developer mode on Plus;
-- verify the tools are visible and invocable from a normal ChatGPT conversation;
+- make the dedicated test endpoint publicly reachable without Vercel deployment authentication;
+- connect the endpoint as a personal plugin in ChatGPT developer mode on the user's Plus account;
+- verify the tools are visible and invocable from a normal ChatGPT Work conversation;
 - verify errors are model-readable and no secrets are exposed;
 - keep the existing Vercel REST surface available for direct diagnostics.
 
-**Gate:** from the user's Plus account, ChatGPT successfully invokes our own read tool and controlled write/action tool through the deployed MCP endpoint.
+**Gate:** from the user's actual Plus account, ChatGPT successfully invokes our own read tool and controlled write/action tool through the deployed MCP endpoint.
 
-This milestone proves the product channel, not Hermes yet.
+**Verified completion evidence (2026-10-01):**
+- the private personal plugin connected to the deployed M1 endpoint and exposed the two intended canary tools;
+- `get_m1_status` returned `ready` / `m1-canary-v1` from ChatGPT;
+- `run_m1_canary_action("david-manual-test")` returned receipt `m1_15808f73-b006-427b-aef2-4a31d393264c`;
+- the same receipt was independently matched in Vercel runtime logs on `POST /mcp 200`;
+- empty-label validation rejected the action without a successful receipt;
+- the status-only check invoked only the read tool;
+- `17 × 23` used no plugin tool;
+- the sensitive-data check used no plugin tool and exposed no server secrets or configuration.
+
+The gate is satisfied. This milestone proves the product channel, not Hermes yet.
 
 ## M2 — Hermes Plugin End-to-End
 
@@ -65,7 +81,7 @@ This milestone proves the product channel, not Hermes yet.
 - run one tool-capable task;
 - verify session continuity and expected restart persistence;
 - verify ChatGPT never receives `API_SERVER_KEY` or provider credentials;
-- manually test the essential plugin flow on every ChatGPT surface we intend to support; mobile availability remains a release requirement to verify, not an assumption.
+- manually test the essential plugin flow on supported ChatGPT surfaces; current OpenAI Help Center guidance says MCP apps are web-only, so mobile is a future platform re-check rather than an M2 acceptance gate.
 
 Hermes references:
 
@@ -172,4 +188,4 @@ A consumer standalone web app is **not** on the critical path. Promote it back t
 
 ## Sequencing rule
 
-**Prove ChatGPT Plus -> our MCP endpoint first. Then prove ChatGPT -> MCP -> Hermes. Add auth/isolation. Publish. Only then add OpenClaw and generalize from evidence.**
+**M1 is complete: the user's Plus account can use our deployed MCP read and action tools. Next prove ChatGPT -> MCP -> Hermes in M2. Then add auth/isolation, publish, add OpenClaw, and generalize only from verified evidence.**

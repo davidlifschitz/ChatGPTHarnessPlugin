@@ -1,0 +1,93 @@
+name: M1 deployed MCP smoke
+
+on:
+  # Before merge, workflow_dispatch is unavailable because this file is not on main.
+  # Opt in explicitly; ordinary branch pushes must not create canary receipts.
+  push:
+    branches: [m1/personal-plugin-proof]
+  workflow_dispatch:
+    inputs:
+      mcp_url:
+        description: Public HTTPS MCP URL to test (for example, https://example.vercel.app/mcp)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  live-mcp:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[m1-live-smoke]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MCP_URL: ${{ inputs.mcp_url || 'https://hermes-consumer-layer-m1-git-m1-80ea8b-davidlifschitzs-projects.vercel.app/mcp' }}
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Initialize through MCP Inspector
+        run: npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method initialize --format json
+
+      - name: List exactly two tools through MCP Inspector
+        run: |
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/list --strict --format json > /tmp/tools.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/tools.json', 'utf8'));
+          const names = payload.result.tools.map((tool) => tool.name);
+          const expected = ['get_m1_status', 'run_m1_canary_action'];
+          if (JSON.stringify(names) !== JSON.stringify(expected)) {
+            throw new Error(`Unexpected tools: ${JSON.stringify(names)}`);
+          }
+          const assert = require('node:assert/strict');
+          for (const tool of payload.result.tools) {
+            assert.equal(tool.inputSchema.type, 'object');
+            assert.equal(tool.inputSchema.additionalProperties, false);
+          }
+          const [status, action] = payload.result.tools;
+          assert.deepEqual(status.inputSchema.properties, {});
+          assert.deepEqual(status.inputSchema.required || [], []);
+          assert.deepEqual(action.inputSchema.required, ['label']);
+          assert.deepEqual(Object.keys(action.inputSchema.properties), ['label']);
+          assert.equal(action.inputSchema.properties.label.type, 'string');
+          assert.equal(action.inputSchema.properties.label.minLength, 1);
+          assert.equal(action.inputSchema.properties.label.maxLength, 80);
+          assert.deepEqual(status.annotations, {
+            readOnlyHint: true, destructiveHint: false,
+            idempotentHint: true, openWorldHint: false,
+          });
+          assert.deepEqual(action.annotations, {
+            readOnlyHint: false, destructiveHint: false,
+            idempotentHint: false, openWorldHint: false,
+          });
+          console.log(JSON.stringify({ tools: names, schemas_and_annotations: 'passed' }));
+          NODE
+
+      - name: Call deployed read tool
+        run: |
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name get_m1_status --tool-args-json '{}' --format json > /tmp/status.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/status.json', 'utf8'));
+          const value = payload.result.structuredContent;
+          if (value?.service !== 'chatgpt-harness-plugin' || value?.milestone !== 'M1' || value?.status !== 'ready') {
+            throw new Error(`Unexpected status: ${JSON.stringify(value)}`);
+          }
+          console.log(JSON.stringify(value));
+          NODE
+
+      - name: Call deployed action tool exactly once
+        run: |
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name run_m1_canary_action --tool-args-json '{"label":"m1-live-smoke"}' --format json > /tmp/action.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/action.json', 'utf8'));
+          const value = payload.result.structuredContent;
+          if (value?.success !== true || value?.label !== 'm1-live-smoke' || !/^m1_[0-9a-f-]{36}$/.test(value?.receipt_id || '')) {
+            throw new Error(`Unexpected action result: ${JSON.stringify(value)}`);
+          }
+          console.log(JSON.stringify({ receipt_id: value.receipt_id, label: value.label }));
+          NODE

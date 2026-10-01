@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - product-reset/**
+      - m1/**
   pull_request:
 
 permissions:
@@ -36,11 +37,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Run web surface tests
-        run: node --test tests/web/*.test.js
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run web and MCP tests
+        run: npm test
 
       - name: Check server-side JavaScript syntax
-        run: |
-          node --check lib/hermes.js
-          node --check api/status.js
-          node --check api/chat.js
+        run: npm run check

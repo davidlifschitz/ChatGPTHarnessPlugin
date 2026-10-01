@@ -1,6 +1,6 @@
 # ChatGPT Harness Plugin — Verified Current State
 
-Last verified: 2026-09-30
+Last verified: 2026-10-01
 
 This file records verified reality, not intended future behavior.
 
@@ -8,18 +8,72 @@ This file records verified reality, not intended future behavior.
 
 **M1 — Plus Personal Plugin Proof**
 
-Status: **not yet implemented**
+Status: **green — Plus personal plugin read/action proof completed on 2026-10-01**
+
+M1 is **green**. The ChatGPT personal-plugin product channel is proven end-to-end. Hermes remains intentionally out of scope until M2.
+
+## Verified M1 implementation state
+
+PR #6 merged on 2026-10-01 and established the plugin-first roadmap.
+
+PR #7 (`m1/personal-plugin-proof`) now contains the narrow M1 implementation:
+
+- Node is constrained to `22.x` in `package.json`;
+- the current split MCP TypeScript SDK packages are pinned;
+- `/mcp` rewrites to the Vercel function at `/api/mcp`;
+- `get_m1_status` is the only read-only M1 tool;
+- `run_m1_canary_action` is the only action tool;
+- the action tool's only side effect is a sanitized server log entry containing its generated receipt ID and label length;
+- neither M1 tool calls Hermes, reads user data, reads environment variables, accesses files/accounts/email, or invokes an external service;
+- the existing Hermes diagnostic code remains separate and unchanged.
+
+Verified final CI evidence for commit `d5e770c431d078aa1f49c3fc724845fb3ff62b65`:
+
+- GitHub Actions run `36875205687` completed successfully;
+- the repository test workflow passed on the M1 branch;
+- earlier M1 CI validation also established six passing Python Hermes-probe tests, Node `v22.23.3`, 18/18 passing JavaScript tests, and a passing `npm run check`.
+
+Verified final deployment and ChatGPT evidence:
+
+- Vercel deployment `dpl_5nHGYvAAJBeixdmKrdxvRRfoheas` reached `READY` for branch commit `d5e770c431d078aa1f49c3fc724845fb3ff62b65`;
+- stable branch alias: `hermes-consumer-layer-m1-git-m1-80ea8b-davidlifschitzs-projects.vercel.app`;
+- a private USER-scope ChatGPT plugin, `chatgpt-harness-plugin` version `0.1.0`, was created and connected to the deployed M1 endpoint;
+- from the user's actual ChatGPT Plus account, `get_m1_status` returned M1 status `ready` with version `m1-canary-v1`;
+- from the user's actual ChatGPT Plus account, `run_m1_canary_action` ran exactly once with label `david-manual-test` and returned receipt `m1_15808f73-b006-427b-aef2-4a31d393264c`;
+- Vercel runtime logs independently matched that exact receipt at `POST /mcp 200` with event `m1_canary_action` and `label_length: 17`;
+- the empty-label action test was rejected by input validation and returned no successful receipt;
+- a follow-up status check invoked only the read-only status tool;
+- `17 × 23` returned `391` without invoking a plugin tool;
+- the sensitive-server-data prompt invoked no plugin tool and exposed no environment variables, secrets, credentials, or deployment configuration.
+
+These observations satisfy the six-prompt manual acceptance suite and the M1 read/action gate.
+
+## Resolved M1 blocker
+
+A live GitHub Actions MCP Inspector run (`36823909159`) attempted to initialize against the deployed Preview URL from outside Vercel.
+
+The first Inspector request failed before MCP initialization with:
+
+```text
+auth_required
+Interactive OAuth requires a TTY on stdin or stderr (or MCP_AUTO_OPEN_ENABLED=true).
+For CI/non-interactive runs use --stored-auth-only.
+```
+
+This is consistent with the Preview being behind Vercel Deployment Protection. No deployed M1 tool call or live Vercel canary receipt was produced by that run.
+
+That ingress blocker was subsequently resolved for the dedicated M1 branch endpoint. The private ChatGPT plugin initialized against the normal HTTPS endpoint, discovered the M1 tools, and successfully exercised both the read and controlled-action paths. No temporary `_vercel_share` URL or protection-bypass cookie was used as acceptance evidence.
+
+Current Vercel references:
+
+- https://vercel.com/changelog/protect-production-deployments-for-free-on-every-plan
+- https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/deployment-protection-exceptions
+
+The September 9, 2026 Vercel changelog states that Deployment Protection Exceptions are free on every plan. The older exception documentation contains the dashboard flow for adding an unprotected preview domain; its older plan-pricing sentence is superseded by that changelog.
 
 ## Verified OpenAI platform state
 
-Current official OpenAI documentation verifies:
-
-- ChatGPT developer mode provides full MCP support for read and write tools on Plus and Pro;
-- a developer can add a deployed HTTPS `/mcp` endpoint as a personal plugin;
-- plugins can contain skills, an MCP server, or both;
-- ChatGPT and Codex share a universal plugin directory;
-- public plugin submission/review exists;
-- authenticated plugin MCP servers use the MCP OAuth 2.1 authorization model.
+Current OpenAI developer documentation describes the personal-plugin/developer-mode path for connecting a public HTTPS MCP endpoint and testing MCP tools in ChatGPT.
 
 Authoritative references:
 
@@ -28,6 +82,17 @@ Authoritative references:
 - https://developers.openai.com/plugins/concepts/plugins
 - https://developers.openai.com/plugins/deploy/submission
 - https://developers.openai.com/plugins/build/auth
+
+Plan-specific write-tool availability must still be verified empirically in the user's Plus account as part of M1 manual acceptance because current OpenAI documentation surfaces are not fully consistent on that detail.
+
+Specifically, the OpenAI developer homepage currently states that developer mode provides full MCP read/write support in Plus and Pro, while the current OpenAI Help Center page says full MCP is currently available to Business and Enterprise/Edu and describes Pro as read/fetch-only.
+
+Conflicting official references:
+
+- https://developers.openai.com/chatgpt
+- https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt
+
+The same current Help Center page explicitly says MCP apps are not available on mobile and are web-only. Therefore iPhone/mobile invocation is not an M1 gate and must not be represented as currently supported.
 
 ## Verified Sign in with ChatGPT state
 
@@ -79,17 +144,18 @@ Reference:
 
 The documented Portal MCP surface does **not** establish a Hermes session/chat tool or direct per-instance Hermes API ingress.
 
-Therefore the project still must verify a supported machine path from our MCP service to the actual Hermes runtime.
+Therefore the project still must verify a supported machine path from our MCP service to the actual Hermes runtime during M2.
 
 ## Verified repository reality
 
 - `davidlifschitz/ChatGPTHarnessPlugin` is the canonical repository.
 - PR #4 merged on 2026-08-26 and established the upstream-first, multi-harness consumer-layer architecture.
+- PR #6 merged on 2026-10-01 and made ChatGPT plugin/MCP the primary V1 consumer channel.
 - Hermes is the MVP harness; OpenClaw is planned second.
 - The repository contains `tools/hermes_probe.py` for Hermes capabilities/model/session verification with opt-in chat.
-- The repository contains a dependency-free Vercel diagnostic surface with server-only `/api/status` and `/api/chat` routes.
+- The repository contains a Vercel diagnostic surface with server-only `/api/status` and `/api/chat` routes.
+- M1 added the separate `/api/mcp` route and `/mcp` rewrite.
 - Browser code is designed not to contain Hermes server credentials.
-- The root `api/` directory currently contains `chat.js` and `status.js`; there is no implemented `/mcp` endpoint in the current main branch.
 - The repository does not yet contain a public plugin package/manifest.
 
 ## Previous managed Hermes Cloud finding
@@ -102,13 +168,13 @@ It does not prove that all current/future Hermes Cloud machine-access paths are 
 
 ADR 0005 therefore remains valid as an allowed fallback: run official Hermes on operator-controlled infrastructure when needed to obtain a secure machine API boundary.
 
-## Architecture decision now proposed/recorded
+## Architecture decision now recorded
 
 ADR 0006 changes the primary consumer channel:
 
-- ChatGPT plugin/MCP becomes V1 rather than V2+;
-- Plus developer mode is the first private integration path;
-- the standalone Vercel UI becomes diagnostics/admin/testing;
+- ChatGPT plugin/MCP is V1 rather than V2+;
+- the personal-plugin path is the first private integration path;
+- the standalone Vercel UI is diagnostics/admin/testing;
 - public plugin submission follows only after the private Hermes path and user isolation are proven.
 
 This changes the consumer surface and roadmap sequencing.
@@ -117,10 +183,6 @@ It does **not** replace the upstream-first harness model or ADR 0005's runtime-b
 
 ## Not yet verified
 
-- our own deployed streamable-HTTP `/mcp` endpoint;
-- successful personal-plugin connection from the user's Plus account;
-- one read tool call from ChatGPT to our MCP server;
-- one controlled write/action tool call from ChatGPT to our MCP server;
 - plugin -> MCP -> Hermes connectivity;
 - successful real Hermes session chat through the plugin;
 - a successful tool-capable Hermes task through the plugin;
@@ -128,22 +190,15 @@ It does **not** replace the upstream-first harness model or ADR 0005's runtime-b
 - use of Sign in with ChatGPT inside the selected Hermes runtime;
 - multi-user OAuth/isolation;
 - public plugin package validation/submission/approval;
-- intended mobile plugin behavior;
+- any future change that makes MCP apps available on mobile;
 - OpenClaw integration;
 - billing, entitlements, analytics, or public onboarding.
 
 ## Current critical path
 
-1. Implement a minimal streamable-HTTP MCP endpoint at `/mcp`.
-2. Deploy it to stable HTTPS.
-3. Add it as a personal plugin in ChatGPT developer mode on Plus.
-4. Prove one read tool and one controlled write/action tool.
-5. Connect the MCP service to a real Hermes API server through a secure machine path.
-6. Prove capabilities/sessions and one real Hermes turn.
-7. Prove one tool-capable task and session continuity.
-8. Add OAuth 2.1 and verify two-user isolation.
-9. Package and submit the public plugin.
-10. Add OpenClaw only after the Hermes plugin path is stable.
+M1 is complete. Stop M1 work here.
+
+The next milestone is M2: prove one real Hermes task through the now-verified ChatGPT -> personal plugin -> MCP boundary. Do not expand M1 with Hermes, OAuth, OpenClaw, public submission, or unrelated product work.
 
 ## State-update rule
 

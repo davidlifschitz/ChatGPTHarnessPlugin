@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
