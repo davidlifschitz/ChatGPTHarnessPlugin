@@ -1,6 +1,10 @@
 name: M1 deployed MCP smoke
 
 on:
+  # Before merge, workflow_dispatch is unavailable because this file is not on main.
+  # Opt in explicitly; ordinary branch pushes must not create canary receipts.
+  push:
+    branches: [m1/personal-plugin-proof]
   workflow_dispatch:
     inputs:
       mcp_url:
@@ -13,10 +17,11 @@ permissions:
 
 jobs:
   live-mcp:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[m1-live-smoke]')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      MCP_URL: ${{ inputs.mcp_url }}
+      MCP_URL: ${{ inputs.mcp_url || 'https://hermes-consumer-layer-m1-git-m1-80ea8b-davidlifschitzs-projects.vercel.app/mcp' }}
     steps:
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -37,7 +42,28 @@ jobs:
           if (JSON.stringify(names) !== JSON.stringify(expected)) {
             throw new Error(`Unexpected tools: ${JSON.stringify(names)}`);
           }
-          console.log(JSON.stringify({ tools: names }));
+          const assert = require('node:assert/strict');
+          for (const tool of payload.result.tools) {
+            assert.equal(tool.inputSchema.type, 'object');
+            assert.equal(tool.inputSchema.additionalProperties, false);
+          }
+          const [status, action] = payload.result.tools;
+          assert.deepEqual(status.inputSchema.properties, {});
+          assert.deepEqual(status.inputSchema.required || [], []);
+          assert.deepEqual(action.inputSchema.required, ['label']);
+          assert.deepEqual(Object.keys(action.inputSchema.properties), ['label']);
+          assert.equal(action.inputSchema.properties.label.type, 'string');
+          assert.equal(action.inputSchema.properties.label.minLength, 1);
+          assert.equal(action.inputSchema.properties.label.maxLength, 80);
+          assert.deepEqual(status.annotations, {
+            readOnlyHint: true, destructiveHint: false,
+            idempotentHint: true, openWorldHint: false,
+          });
+          assert.deepEqual(action.annotations, {
+            readOnlyHint: false, destructiveHint: false,
+            idempotentHint: false, openWorldHint: false,
+          });
+          console.log(JSON.stringify({ tools: names, schemas_and_annotations: 'passed' }));
           NODE
 
       - name: Call deployed read tool
