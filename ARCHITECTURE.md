@@ -1,85 +1,122 @@
-# Harness Consumer Layer — Architecture
+# ChatGPT Harness Plugin — Architecture
 
 This document contains long-lived architecture constraints. For verified reality see `STATE.md`; for sequencing see `ROADMAP.md`.
 
 ## Objective
 
-Provide one simple consumer experience over capable general-purpose agent harnesses without duplicating those harness runtimes or exposing infrastructure administration to users.
+Provide a simple ChatGPT-native experience over capable general-purpose agent harnesses without duplicating those harness runtimes or exposing infrastructure administration to users.
 
 Hermes is the MVP harness. OpenClaw is the planned second harness.
 
 ## System shape
 
 ```text
-mobile / desktop browser
-          |
-          v
-Consumer Web Surface (Vercel today)
-          |
-          v
-Minimal Product Boundary
-  - identity/onboarding when needed
-  - user -> harness/runtime mapping
-  - secret mediation
-  - product entitlements
-          |
-          v
-Thin Harness Connector Seam
+ChatGPT
+  |
+  | plugin package
+  | - skills
+  | - MCP connection
+  | - optional UI
+  v
+Public HTTPS MCP Service
+  |
+  | product concerns
+  | - authn/authz
+  | - user -> harness mapping
+  | - goal-level tools
+  | - confirmation/error policy
+  v
+Thin Harness Adapter Seam
        /        \
       v          v
- Hermes          OpenClaw
-  MVP             next
-      \           /
-       v         v
-Operator-controlled harness runtime environment
-  - VM/container host
-  - persistent harness-native data
-  - health/restart policy
-  - restricted machine ingress
-          |
-          v
-Upstream model/tool/provider services
-( Nous Portal or others as configured )
+   Hermes      OpenClaw
+    MVP          next
+      \          /
+       v        v
+Harness-native runtime/state
+  |
+  v
+Model/tool/provider services
 ```
 
-## Upstream-first does not mean hosting-provider-first
+## ChatGPT plugin is the primary distribution boundary
 
-The product reuses upstream harness software, APIs, runtime semantics, sessions, memory, tools, skills, and provider integration.
+The plugin is the V1 consumer surface.
 
-It does **not** require a harness vendor to own the VM/network boundary.
+OpenAI's current plugin architecture allows a package to include skills, an MCP server, or both, with optional UI:
 
-When a managed hosting product does not expose the machine API contract required by our consumer product, we run the upstream harness on infrastructure we control instead of rebuilding the harness or emulating a human dashboard session.
+- https://developers.openai.com/plugins/concepts/plugins
+- https://developers.openai.com/plugins/build/plugins
 
-A managed hosting option may be used when it exposes a supported machine API, authentication, lifecycle, persistence, and isolation contract.
+Developer-mode MCP support is available on Plus and Pro:
 
-## Runtime infrastructure boundary
+- https://developers.openai.com/chatgpt
 
-The product operator may own the minimum infrastructure needed to run the harness reliably:
+The standalone Vercel UI is retained as diagnostics/admin/testing. It is not the default consumer product surface.
 
-- VM/container deployment;
-- persistent volumes;
-- secret injection;
-- network ingress/private connectivity;
-- process health/restart behavior;
-- backups/recovery where required;
-- later provisioning/capacity automation after product evidence justifies it.
+## Plugin package versus MCP service
 
-This infrastructure is an implementation detail hidden from consumers.
+Keep these responsibilities separate.
 
-Operating infrastructure must not become an excuse to recreate harness semantics. Hermes/OpenClaw remain authoritative for agent execution and native state.
+### Plugin package
 
-## Harness connector seam
+The package describes how ChatGPT should use the product:
 
-A connector may own:
+- skill instructions/resources;
+- MCP server configuration;
+- listing metadata;
+- optional UI assets when justified.
 
-- authentication/connection configuration;
-- endpoint and lifecycle discovery;
-- capability discovery and translation;
+It must not contain private server credentials.
+
+### MCP service
+
+The public HTTPS MCP endpoint is the execution/control boundary for ChatGPT:
+
+- authenticate and authorize the end user;
+- expose focused tools;
+- resolve user -> harness/runtime mappings;
+- call harness adapters;
+- enforce confirmation and safety semantics;
+- translate harness-specific failures into useful model-readable errors;
+- record only product-owned operational data that is actually needed.
+
+For public distribution, the MCP endpoint must be stable and publicly reachable over HTTPS:
+
+- https://developers.openai.com/plugins/build/mcp-server
+
+## Authentication boundary
+
+Private user data and write actions require authenticated access.
+
+The public MCP service should follow the MCP OAuth 2.1 model described by OpenAI:
+
+- protected-resource metadata;
+- authorization server discovery;
+- authorization-code flow with PKCE;
+- issuer/audience/scope verification on every request.
+
+Reference:
+
+- https://developers.openai.com/plugins/build/auth
+
+ChatGPT authenticates to our MCP service. Our MCP service then authenticates to the selected harness/runtime using server-side credentials appropriate to that harness.
+
+Do not pass Hermes `API_SERVER_KEY` to ChatGPT or expose it as a user credential.
+
+## Harness adapter seam
+
+A harness adapter may own:
+
+- runtime endpoint discovery;
+- server-side harness authentication;
+- capability discovery;
 - request/response/event/stream transport;
+- mapping product tool outcomes to harness-native operations;
 - stable upstream references where required;
 - harness-specific diagnostics/error translation.
 
-A connector does **not** own:
+A harness adapter does **not** own:
 
 - a generic agent runtime;
 - a duplicate task/run engine;
@@ -89,28 +126,72 @@ A connector does **not** own:
 - a cross-harness scheduler;
 - a generic model gateway.
 
-The connector contract evolves from evidence. Hermes defines the first implementation; OpenClaw validates/revises it.
+The adapter contract evolves from evidence. Hermes defines the first implementation; OpenClaw validates/revises it.
 
-## Hermes connector — MVP
+## Tool surface
 
-Hermes is first because its API server exposes the primitives required for the consumer thesis: OpenAI-compatible chat, runs, sessions, capabilities/model discovery, skills/toolsets, and stable memory/session scoping.
+Do not mirror every internal harness endpoint as a plugin tool.
 
-M1 runs an official Hermes runtime on an operator-controlled persistent host. The API server is enabled with server-side bearer authentication and reached only through restricted machine ingress. The browser never receives the Hermes key.
+Each MCP tool should correspond to a recognizable user goal and expose only the inputs/actions required for that goal.
 
-Nous Portal may be used by Hermes for model/tool authentication. Nous-managed Hermes Cloud is not required for execution hosting.
+Reference:
 
-Hermes references:
+- https://developers.openai.com/plugins/plan/tools
+
+Likely first outcomes:
+
+- discover/select an available agent;
+- start a new unit of work;
+- send or continue work;
+- inspect status/output;
+- stop an active run.
+
+The exact schema should be designed against the real Hermes integration rather than frozen in advance.
+
+## Hermes adapter — MVP
+
+Hermes exposes the primitives required for the consumer thesis:
+
+- OpenAI-compatible chat;
+- REST sessions;
+- asynchronous runs and control;
+- streaming;
+- capabilities/models;
+- skills/toolsets;
+- stable session-key memory scoping.
+
+References:
 
 - https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
-- https://hermes-agent.nousresearch.com/docs/user-guide/docker/
 - https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration
-- https://hermes-agent.nousresearch.com/docs/integrations/nous-portal
 
-## Consumer frontend boundary
+Hermes' API server requires `API_SERVER_KEY` and defaults to `127.0.0.1:8642`:
 
-The frontend stays harness-neutral at the product level. Users interact with an agent, not a container, API server, provider token, tunnel, or cloud host.
+- https://hermes-agent.nousresearch.com/docs/reference/environment-variables
 
-For M1, the existing minimal Vercel surface is a validation client. It is replaceable.
+Therefore the product must provide a secure machine path from the MCP service to Hermes. The browser/ChatGPT client never receives the Hermes key.
+
+## Managed Hermes Cloud
+
+Nous Portal exposes an OAuth-gated MCP server for Hermes Cloud lifecycle management:
+
+- https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
+
+Documented operations include instance list/status/cost and create/start/stop/restart/destroy/update actions.
+
+That is useful for lifecycle management, but the documented surface is not the same as Hermes' session/chat API. Do not assume it solves conversation transport.
+
+Until a supported managed-cloud session/chat ingress is verified, an operator-controlled Hermes runtime remains an allowed implementation under ADR 0005.
+
+## Sign in with ChatGPT
+
+OpenAI currently lists Hermes Agent as an app that can use eligible Plus/Pro ChatGPT plan usage:
+
+- https://learn.chatgpt.com/docs/sign-in-with-chatgpt
+
+This may simplify how Hermes obtains model usage for a user.
+
+It does not change the architecture requirement that ChatGPT calls our MCP service and that our MCP service reaches a Hermes runtime through a supported transport.
 
 ## Identity and isolation
 
@@ -122,32 +203,64 @@ Client-provided identifiers are never sufficient authorization by themselves.
 
 ## Secrets
 
-Secrets remain server-side. Never ship harness/provider credentials to browser JavaScript, commit them, place them in prompts, return them from APIs, or log raw bearer/refresh tokens.
+Secrets remain server-side.
 
-Publicly reachable harness ports must not be unauthenticated. Prefer restricted/private ingress plus the harness's own authentication.
+Never ship harness/provider credentials to:
+
+- plugin package files;
+- browser JavaScript;
+- model prompts;
+- tool outputs;
+- logs;
+- source control.
+
+Validate every MCP input server-side and enforce authorization independent of model behavior.
+
+Security reference:
+
+- https://developers.openai.com/plugins/guides/security-privacy
 
 ## Durable state
 
 Prefer harness-native state whenever it is authoritative for agent behavior: sessions, messages, runs, memory, approvals, tools, capabilities, or equivalent constructs.
 
-Our database, when one is actually required, contains product-owned state such as identity, harness/runtime mapping, entitlements, billing references, and product preferences. Do not mirror harness runtime state just to create symmetry.
+Our database, when required, contains product-owned state such as:
 
-## Deployment and manual testing
+- user identity;
+- harness/runtime mapping;
+- entitlements;
+- OAuth/account linkage;
+- billing references;
+- product preferences.
 
-Vercel is an acceptable consumer/product boundary. The harness runtime is separately hosted on infrastructure appropriate to the harness.
+Do not mirror harness runtime state just to create symmetry.
 
-A deployment is not proof until the real browser -> product -> harness flow is exercised.
+## Events and automations
 
-## Future channels
+MCP Events is a later enhancement, not an MVP dependency.
 
-ChatGPT plugin / Apps SDK / MCP is V2+. It becomes another client of the same product/connector boundaries rather than defining V1 architecture.
+Once the core Hermes path works, events may let the plugin surface completion/progress changes without manual polling.
+
+Reference:
+
+- https://developers.openai.com/plugins/build/mcp-events
+
+## Public distribution
+
+Public submission requires a plugin package, a stable production MCP service, developer identity/review requirements, and the required listing/review materials.
+
+Reference:
+
+- https://developers.openai.com/plugins/deploy/submission
+
+Do not start directory-polish work before the private Plus proof and Hermes E2E path work.
 
 ## Source-of-truth hierarchy
 
 When artifacts disagree:
 
 1. observed behavior against the real deployed integration;
-2. authoritative current upstream harness documentation;
+2. authoritative current OpenAI/Hermes/OpenClaw documentation;
 3. `STATE.md`;
 4. accepted current ADRs and this architecture document;
 5. `ROADMAP.md` / `PROJECT.md`;
