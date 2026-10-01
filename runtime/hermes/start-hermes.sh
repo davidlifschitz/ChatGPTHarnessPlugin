@@ -2,7 +2,7 @@
 set -eu
 
 PROVIDER="${HERMES_M2_PROVIDER:-openai-api}"
-MODEL="${HERMES_M2_MODEL:-gpt-5.4}"
+MODEL="${HERMES_M2_MODEL:-gpt-5.4-mini}"
 
 if [ -z "${API_SERVER_KEY:-}" ]; then
   echo "[m2-runtime] API_SERVER_KEY is required." >&2
