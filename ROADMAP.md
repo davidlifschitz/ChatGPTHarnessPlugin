@@ -40,6 +40,8 @@ Sources:
 
 **Goal:** empirically prove the intended ChatGPT-side path on the user's actual Plus account before touching public distribution or multi-user complexity.
 
+**Status:** complete / green as of 2026-10-01.
+
 **Work:**
 - add a minimal streamable-HTTP MCP endpoint at a stable HTTPS `/mcp` URL;
 - expose one harmless read-only canary tool;
@@ -52,9 +54,17 @@ Sources:
 
 **Gate:** from the user's actual Plus account, ChatGPT successfully invokes our own read tool and controlled write/action tool through the deployed MCP endpoint.
 
-If the Plus account cannot expose or invoke the action tool because of a product-plan gate, record that as a verified M1 platform blocker rather than weakening the gate or moving on to Hermes.
+**Verified completion evidence (2026-10-01):**
+- the private personal plugin connected to the deployed M1 endpoint and exposed the two intended canary tools;
+- `get_m1_status` returned `ready` / `m1-canary-v1` from ChatGPT;
+- `run_m1_canary_action("david-manual-test")` returned receipt `m1_15808f73-b006-427b-aef2-4a31d393264c`;
+- the same receipt was independently matched in Vercel runtime logs on `POST /mcp 200`;
+- empty-label validation rejected the action without a successful receipt;
+- the status-only check invoked only the read tool;
+- `17 × 23` used no plugin tool;
+- the sensitive-data check used no plugin tool and exposed no server secrets or configuration.
 
-This milestone proves the product channel, not Hermes yet.
+The gate is satisfied. This milestone proves the product channel, not Hermes yet.
 
 ## M2 — Hermes Plugin End-to-End
 
@@ -178,4 +188,4 @@ A consumer standalone web app is **not** on the critical path. Promote it back t
 
 ## Sequencing rule
 
-**First empirically prove the user's Plus account can use our deployed MCP read and action tools. Then prove ChatGPT -> MCP -> Hermes. Add auth/isolation. Publish. Only then add OpenClaw and generalize from evidence.**
+**M1 is complete: the user's Plus account can use our deployed MCP read and action tools. Next prove ChatGPT -> MCP -> Hermes in M2. Then add auth/isolation, publish, add OpenClaw, and generalize only from verified evidence.**
