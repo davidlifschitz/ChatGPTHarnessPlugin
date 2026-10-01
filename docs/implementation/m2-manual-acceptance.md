@@ -72,7 +72,7 @@ Use a task that forces Hermes to invoke its native terminal tool without externa
 
 ```text
 @ChatGPT Harness Plugin send this task to the same Hermes session:
-"Use your terminal tool to run a local command that prints the SHA-256 of the exact string m2-hermes-tool-proof. Return the hash and say which tool you used."
+"Use your terminal tool to run exactly this local command: printf %s 'm2-hermes-tool-proof' | sha256sum. Return the hash and say which tool you used."
 Then inspect that Hermes session with the plugin.
 ```
 
