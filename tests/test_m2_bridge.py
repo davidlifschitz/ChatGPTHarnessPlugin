@@ -46,13 +46,16 @@ class BridgeBoundaryTests(unittest.TestCase):
     def test_read_only_capability_routes_are_allowlisted(self):
         self.assertTrue(self.handler("GET", "/v1/capabilities")._route_allowed())
         self.assertTrue(self.handler("GET", "/v1/models")._route_allowed())
+        self.assertTrue(self.handler("POST", "/v1/chat/completions")._route_allowed())
         self.assertTrue(self.handler("GET", "/api/sessions?limit=1&offset=0")._route_allowed())
 
     def test_exact_session_routes_are_allowlisted(self):
         sid = "api_123.test:@-ok"
+        encoded_sid = "api_123.test%3A%40-ok"
         self.assertTrue(self.handler("POST", "/api/sessions")._route_allowed())
         self.assertTrue(self.handler("POST", f"/api/sessions/{sid}/chat")._route_allowed())
         self.assertTrue(self.handler("GET", f"/api/sessions/{sid}")._route_allowed())
+        self.assertTrue(self.handler("GET", f"/api/sessions/{encoded_sid}")._route_allowed())
         self.assertTrue(
             self.handler(
                 "GET",
