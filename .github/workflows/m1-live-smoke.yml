@@ -1,9 +1,12 @@
-name: M1 live MCP smoke
+name: M1 deployed MCP smoke
 
 on:
-  push:
-    branches:
-      - m1/**
+  workflow_dispatch:
+    inputs:
+      mcp_url:
+        description: Public HTTPS MCP URL to test (for example, https://example.vercel.app/mcp)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -11,8 +14,9 @@ permissions:
 jobs:
   live-mcp:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     env:
-      MCP_URL: https://hermes-consumer-layer-m1-nkv17rxsn-davidlifschitzs-projects.vercel.app/mcp
+      MCP_URL: ${{ inputs.mcp_url }}
     steps:
       - name: Set up Node
         uses: actions/setup-node@v4
