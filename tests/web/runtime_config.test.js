@@ -19,7 +19,8 @@ test('Render Hermes runtime keeps raw API on loopback behind a separate bridge c
   assert.match(start, /API_SERVER_KEY is required/);
   assert.match(start, /HERMES_BRIDGE_KEY is required/);
   assert.match(start, /OPENAI_API_KEY is required/);
-  assert.match(start, /exec \/opt\/hermes\/\.venv\/bin\/python \/opt\/m2\/bridge\.py/);
+  assert.match(start, /\/opt\/hermes\/\.venv\/bin\/python \/opt\/m2\/bridge\.py &/);
+  assert.match(start, /wait "\$bridge_pid"/);
 
   assert.match(bridge, /UPSTREAM_HOST = "127\.0\.0\.1"/);
   assert.match(bridge, /HERMES_BRIDGE_KEY/);
