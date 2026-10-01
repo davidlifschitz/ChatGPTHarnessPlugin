@@ -24,11 +24,11 @@ jobs:
           node-version: '22'
 
       - name: Initialize through MCP Inspector
-        run: npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --method initialize --format json
+        run: npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method initialize --format json
 
       - name: List exactly two tools through MCP Inspector
         run: |
-          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --method tools/list --format json > /tmp/tools.json
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/list --strict --format json > /tmp/tools.json
           node - <<'NODE'
           const fs = require('node:fs');
           const payload = JSON.parse(fs.readFileSync('/tmp/tools.json', 'utf8'));
@@ -42,7 +42,7 @@ jobs:
 
       - name: Call deployed read tool
         run: |
-          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --method tools/call --tool-name get_m1_status --tool-args-json '{}' --format json > /tmp/status.json
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name get_m1_status --tool-args-json '{}' --format json > /tmp/status.json
           node - <<'NODE'
           const fs = require('node:fs');
           const payload = JSON.parse(fs.readFileSync('/tmp/status.json', 'utf8'));
@@ -55,7 +55,7 @@ jobs:
 
       - name: Call deployed action tool exactly once
         run: |
-          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --method tools/call --tool-name run_m1_canary_action --tool-args-json '{"label":"m1-live-smoke"}' --format json > /tmp/action.json
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name run_m1_canary_action --tool-args-json '{"label":"m1-live-smoke"}' --format json > /tmp/action.json
           node - <<'NODE'
           const fs = require('node:fs');
           const payload = JSON.parse(fs.readFileSync('/tmp/action.json', 'utf8'));
