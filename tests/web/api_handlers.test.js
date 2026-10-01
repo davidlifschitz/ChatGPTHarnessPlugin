@@ -37,10 +37,11 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-test('status route returns connection state without config', async () => {
+test('status route verifies capabilities, model, and sessions without config leakage', async () => {
   await withHermesServer((req, res) => {
-    if (req.url === '/v1/capabilities') return json(res, 200, {streaming: true});
+    if (req.url === '/v1/capabilities') return json(res, 200, {session_chat: true});
     if (req.url === '/v1/models') return json(res, 200, {data: [{id: 'test-profile'}]});
+    if (req.url === '/api/sessions?limit=1&offset=0') return json(res, 200, {object: 'list', data: []});
     return json(res, 404, {});
   }, async () => {
     const res = mockResponse();
@@ -48,12 +49,13 @@ test('status route returns connection state without config', async () => {
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.connected, true);
     assert.equal(res.body.model, 'test-profile');
+    assert.equal(res.body.sessions_api, true);
     assert.equal(JSON.stringify(res.body).includes('handler-secret'), false);
     assert.equal(JSON.stringify(res.body).includes(process.env.HERMES_BASE_URL), false);
   });
 });
 
-test('chat route accepts a message and returns assistant text', async () => {
+test('legacy chat route remains available for direct diagnostics', async () => {
   await withHermesServer((req, res) => {
     if (req.url === '/v1/models') return json(res, 200, {data: [{id: 'test-profile'}]});
     if (req.url === '/v1/chat/completions') return json(res, 200, {choices: [{message: {content: 'ok'}}]});
@@ -75,7 +77,7 @@ test('routes reject unsupported methods', async () => {
   assert.equal(res.statusCode, 405);
 });
 
-test('chat route reports missing configuration without exposing secret values', async () => {
+test('chat route reports missing configuration without exposing env names or values', async () => {
   const oldBase = process.env.HERMES_BASE_URL;
   const oldKey = process.env.HERMES_API_KEY;
   delete process.env.HERMES_BASE_URL;
@@ -85,6 +87,7 @@ test('chat route reports missing configuration without exposing secret values', 
     await chatHandler({method: 'POST', body: {message: 'hello'}}, res);
     assert.equal(res.statusCode, 503);
     assert.match(res.body.error, /not configured/i);
+    assert.equal(/HERMES_BASE_URL|HERMES_API_KEY|process\.env/i.test(res.body.error), false);
   } finally {
     if (oldBase !== undefined) process.env.HERMES_BASE_URL = oldBase;
     if (oldKey !== undefined) process.env.HERMES_API_KEY = oldKey;
