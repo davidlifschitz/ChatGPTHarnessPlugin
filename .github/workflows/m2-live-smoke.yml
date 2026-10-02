@@ -1,0 +1,164 @@
+name: M2 live Hermes smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      mcp_url:
+        description: Public M2 MCP URL to test, ending in /mcp
+        required: true
+        type: string
+      confirm_live_actions:
+        description: I understand this creates a real Hermes session and model/tool calls
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  live-hermes:
+    if: inputs.confirm_live_actions == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MCP_URL: ${{ inputs.mcp_url }}
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Initialize MCP endpoint
+        run: npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method initialize --format json
+
+      - name: Verify exact M1 plus M2 tool surface
+        run: |
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/list --strict --format json > /tmp/tools.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/tools.json', 'utf8'));
+          const names = payload.result.tools.map((tool) => tool.name);
+          const expected = [
+            'get_m1_status',
+            'run_m1_canary_action',
+            'start_hermes_session',
+            'send_hermes_task',
+            'get_hermes_session',
+          ];
+          if (JSON.stringify(names) !== JSON.stringify(expected)) {
+            throw new Error(`Unexpected tools: ${JSON.stringify(names)}`);
+          }
+          console.log(JSON.stringify({tools: names}));
+          NODE
+
+      - name: Verify M1 read regression
+        run: |
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name get_m1_status --tool-args-json '{}' --format json > /tmp/m1.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/m1.json', 'utf8')).result.structuredContent;
+          if (value?.status !== 'ready' || value?.version !== 'm1-canary-v1') {
+            throw new Error(`Unexpected M1 result: ${JSON.stringify(value)}`);
+          }
+          console.log(JSON.stringify(value));
+          NODE
+
+      - name: Start real Hermes session
+        run: |
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name start_hermes_session --tool-args-json '{"title":"M2 live smoke"}' --format json > /tmp/session.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/session.json', 'utf8')).result.structuredContent;
+          if (!value?.session_id) throw new Error('Hermes session id missing.');
+          fs.appendFileSync(process.env.GITHUB_ENV, `HERMES_SESSION_ID=${value.session_id}\n`);
+          console.log(JSON.stringify({session_id: value.session_id}));
+          NODE
+
+      - name: Run minimal real Hermes turn
+        run: |
+          node - <<'NODE' > /tmp/minimal-args.json
+          console.log(JSON.stringify({
+            session_id: process.env.HERMES_SESSION_ID,
+            task: 'Return exactly the result of 17 * 23 and no other text.',
+          }));
+          NODE
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name send_hermes_task --tool-args-json "$(cat /tmp/minimal-args.json)" --format json > /tmp/minimal.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/minimal.json', 'utf8')).result.structuredContent;
+          if (value?.success !== true || value?.session_id !== process.env.HERMES_SESSION_ID) {
+            throw new Error(`Unexpected minimal turn: ${JSON.stringify(value)}`);
+          }
+          if (String(value.message || '').trim() !== '391') {
+            throw new Error(`Expected 391, got: ${JSON.stringify(value.message)}`);
+          }
+          if (!/^m2_[0-9a-f-]{36}$/.test(value.request_id || '')) {
+            throw new Error('M2 request id missing or invalid.');
+          }
+          console.log(JSON.stringify({request_id: value.request_id, result: value.message}));
+          NODE
+
+      - name: Run real Hermes terminal-tool turn
+        run: |
+          node - <<'NODE' > /tmp/tool-args.json
+          console.log(JSON.stringify({
+            session_id: process.env.HERMES_SESSION_ID,
+            task: `Use your terminal tool to run exactly this local command: printf %s 'm2-hermes-tool-proof' | sha256sum. Return the hash and say which tool you used.`,
+          }));
+          NODE
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name send_hermes_task --tool-args-json "$(cat /tmp/tool-args.json)" --format json > /tmp/tool-turn.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/tool-turn.json', 'utf8')).result.structuredContent;
+          const expectedHash = '3a180e42ae7e215ae01e611021419053b015e9d585cddac7aeb145b549ec0632';
+          if (value?.success !== true || !String(value.message || '').includes(expectedHash)) {
+            throw new Error(`Tool-backed result missing expected hash: ${JSON.stringify(value)}`);
+          }
+          console.log(JSON.stringify({request_id: value.request_id, expected_hash_observed: true}));
+          NODE
+
+      - name: Inspect tool evidence without raw tool payloads
+        run: |
+          node - <<'NODE' > /tmp/inspect-args.json
+          console.log(JSON.stringify({session_id: process.env.HERMES_SESSION_ID}));
+          NODE
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name get_hermes_session --tool-args-json "$(cat /tmp/inspect-args.json)" --format json > /tmp/inspect.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/inspect.json', 'utf8')).result.structuredContent;
+          if (!(value?.tool_call_count >= 1)) {
+            throw new Error(`No Hermes tool call observed: ${JSON.stringify(value)}`);
+          }
+          const names = value.tool_names || [];
+          if (!names.some((name) => /terminal|shell|execute|code/i.test(name))) {
+            throw new Error(`No terminal-like Hermes tool observed: ${JSON.stringify(names)}`);
+          }
+          console.log(JSON.stringify({
+            session_id: value.session_id,
+            message_count: value.message_count,
+            tool_call_count: value.tool_call_count,
+            tool_names: names,
+          }));
+          NODE
+
+      - name: Verify same-session continuation
+        run: |
+          node - <<'NODE' > /tmp/continue-args.json
+          console.log(JSON.stringify({
+            session_id: process.env.HERMES_SESSION_ID,
+            task: 'What exact proof string did I ask you to hash in the previous turn?',
+          }));
+          NODE
+          npx -y @modelcontextprotocol/inspector@latest --cli "$MCP_URL" --transport http --stored-auth-only --method tools/call --tool-name send_hermes_task --tool-args-json "$(cat /tmp/continue-args.json)" --format json > /tmp/continue.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/continue.json', 'utf8')).result.structuredContent;
+          if (value?.session_id !== process.env.HERMES_SESSION_ID) {
+            throw new Error('Continuation changed Hermes session id.');
+          }
+          if (!String(value.message || '').includes('m2-hermes-tool-proof')) {
+            throw new Error(`Continuation did not preserve session context: ${JSON.stringify(value.message)}`);
+          }
+          console.log(JSON.stringify({request_id: value.request_id, continuation: 'passed'}));
+          NODE
