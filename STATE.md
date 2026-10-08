@@ -1,6 +1,6 @@
 # ChatGPT Harness Plugin — Verified Current State
 
-Last verified: 2026-10-01
+Last verified: 2026-10-08
 
 This file records verified reality, not intended future behavior.
 
@@ -8,56 +8,46 @@ This file records verified reality, not intended future behavior.
 
 **M2 — Hermes Plugin End-to-End**
 
-Status: **in progress — implementation/CI/Preview green; real Hermes end-to-end gate not yet verified**
+Status: **in progress — native implementation passes local validation; exact-head CI, deployment, and live Hermes acceptance are not verified**
 
-M1 remains green. M2 now has a tested Hermes session adapter, a deliberately small ChatGPT-facing MCP surface, a restricted operator-controlled Hermes runtime definition, and a manual-only live smoke/acceptance suite. The real Render runtime has not been provisioned, the M2 Vercel Preview has not been wired to that runtime, and no M2 live Hermes task has yet been accepted through the private ChatGPT plugin.
+M1 remains green. The current M2 path uses the existing private USER-scope ChatGPT plugin, a single-operator Vercel MCP adapter, and the first-party managed Hermes Cloud agent `Fair-dinkum Esky`. A direct Nous Portal check on 2026-10-08 showed the Plus balance at 18.26 and the existing agent Running/Healthy. This confirms the selected account and agent are available; it does not prove that a task has passed through the native plugin path.
 
-## Verified M2 implementation state
+## Native M2 implementation
 
-Draft PR #8 (`m2/hermes-e2e`) contains the current M2 implementation.
+This branch implements the native Hermes Cloud path. On 2026-10-08, local validation passed 99 Node tests under Node 22.23.3, all 11 current Python tests, JavaScript syntax checks, and diff checks. Exact-head CI, deployment, and live acceptance remain outstanding. The existing private plugin remains USER-scope release `0.1.0` (`pluginrel_6abe73ef10b08191bf86cc3109ae5306`); a `0.2.0` package is prepared but has not been released.
 
-Verified at commit `31f3635d935a48041fd972cdc9877628fc2cbef2`:
+- The public MCP surface is intended to contain exactly five tools: `get_m1_status`, `run_m1_canary_action`, `start_hermes_session`, `send_hermes_task`, and `get_hermes_session`.
+- The adapter uses authorization-code OAuth with PKCE for ChatGPT and Hermes Cloud's native OAuth flow, including rotating refresh credentials held in private connector state.
+- The adapter obtains a short-lived Hermes Cloud WebSocket ticket, sends it through the negotiated WebSocket subprotocol, and uses Hermes-native JSON-RPC.
+- Session creation stores the requested title through Hermes' native `session.title` operation. Hermes Cloud remains authoritative for session history; the adapter correlates a task with Hermes' own `user_row_id` rather than maintaining a transcript copy.
+- The adapter stores request-routing state, task digests, and bounded one-way credential fingerprints for correlation and safe output across rotation. It stores no transcript or stale raw credentials and exposes no Hermes row IDs, event cursors, or raw tool payloads. Fingerprint overflow fails closed before another task submission.
+- `send_hermes_task` requires a caller-supplied stable `request_id`. Reuse it only for a retry of the same logical task; use a new ID for a new task. The request guard is designed to prevent duplicate execution after an ambiguous submission. `get_hermes_session` can inspect one request by that ID and report `submitted`, `running`, `completed`, `failed`, `interrupted`, or `timed_out`, plus `outcome_unknown`; an ambiguous result must be inspected before any retry. Correctness must be established on the exact committed and deployed revision before M2 is marked green.
 
-- the M1 tools remain present with their existing structured M1 contract;
-- the MCP server adds exactly three Hermes-facing tools: `start_hermes_session`, `send_hermes_task`, and `get_hermes_session`;
-- the server-side Hermes adapter uses Hermes-native `/api/sessions`, session chat, and persisted session messages instead of mirroring conversation state;
-- the Hermes adapter validates session/task inputs, bounds returned text/tool names, uses explicit request timeouts, and emits sanitized model-readable errors without upstream error bodies;
-- the M2 action logger records an opaque M2 request ID and session-ID length, not prompts, credentials, raw tool payloads, or session IDs;
-- the operator-controlled runtime definition uses the official `nousresearch/hermes-agent:latest` image and a persistent `/opt/data` disk;
-- the raw Hermes API is configured for container loopback only, while the public bridge uses a separate bearer credential and a narrow allowlist limited to the M2/diagnostic routes;
-- the bridge blocks unrelated config/env/run/mutation routes and does not expose the internal Hermes `API_SERVER_KEY`;
-- `runtime/hermes/render.yaml` declares the model-provider key and bridge key as external secret placeholders; no credential values are committed;
-- the proof runtime defaults to `gpt-5.4-mini`, which supports Chat Completions and function calling while reducing API-token cost relative to the earlier `gpt-5.4` default;
-- `.github/workflows/m2-live-smoke.yml` is manual-only and requires an explicit live-action confirmation before creating a real Hermes session/model/tool call;
-- `docs/implementation/m2-manual-acceptance.md` defines the M1 regressions, real minimal turn, real tool-capable turn, same-session continuation, controlled failure, secret-isolation check, and restart-persistence gate.
+## Historical operator-controlled M2 implementation and preview
 
-Verified CI/deployment evidence for that commit:
+The earlier published PR #8 head `50c2d5a` contained the operator-controlled Render bridge. Its Vercel Preview deployment `dpl_8o7Kj9kwz8mp85B5xkbUonSkzSzr` reached `READY`, and its recorded CI passed for the older implementation. That historical evidence does not validate the native Hermes Cloud OAuth, WebSocket, or JSON-RPC path described above. Do not merge PR #8.
 
-- GitHub Actions run `36890550131` completed successfully;
-- 11 Python unit tests passed, including the Hermes probe and restricted bridge boundary tests;
-- Python compilation and the runtime shell syntax check passed;
-- 28/28 Node web/MCP/runtime tests passed;
-- server-side JavaScript syntax checks passed;
-- Vercel Preview deployment `dpl_5squkXbwTBYTka5aS3gNZ5ctjefX` reached `READY`;
-- its branch alias is `hermes-consumer-layer-m1-git-m2-0159fc-davidlifschitzs-projects.vercel.app`.
+Independent review history includes 12 Luna passes and 5 Sol passes across the scoped implementation. The final Sol pass identified historical fingerprint loss; the lead accepted and verified its correction with the 99-test run above. No further independent pass was performed beyond the requested caps. The manual CI ingress workflow is read-only and cannot substitute for authenticated operator or ChatGPT acceptance.
 
-## M2 external acceptance still required
+The separate Vercel UI store `store_D8DOz7M58EnmRlti` / `PrivateIAD1` was empty and unconnected on the 2026-10-08 check. A historical API `404` is not evidence that the native plugin is connected or that the native path works. No live bootstrap, session, plugin call, or managed-agent restart has been performed for this native source snapshot.
 
-The following are **not yet verified** and therefore M2 is not green:
+The Render runtime and bridge files from that approach remain in the repository. They have not been removed; they are not the selected M2 critical path and do not count as native acceptance evidence.
 
-- a paid persistent Render Hermes service actually provisioned from the M2 runtime definition;
-- live Render health against the real Hermes process;
-- the M2 Vercel Preview configured with the Render service origin and bridge credential;
-- a normal public/unprotected M2 `/mcp` endpoint reachable by MCP Inspector/ChatGPT;
-- the private ChatGPT plugin updated/released against the M2 endpoint;
-- a real Hermes minimal turn;
-- a real Hermes tool-capable turn with independently observed tool-use evidence;
-- same-session continuation through ChatGPT;
-- controlled invalid-session behavior against the real runtime;
-- runtime restart/redeploy with the same Hermes session still readable afterward;
-- final M1 read/action regressions through the M2 private plugin.
+## M2 live acceptance still required
 
-Do not mark M2 green or merge PR #8 until every item above is directly observed and recorded without secret values.
+M2 remains open until all of the following are observed on the same final source revision and deployment:
+
+- final CI and a deployed Vercel `/mcp` endpoint for the native implementation;
+- OAuth connection from the existing private USER-scope plugin and a live `tools/list` response containing exactly the five tools documented in the manual acceptance procedure;
+- M1 status returning `ready` / `m1-canary-v1`, followed by exactly one `run_m1_canary_action` call with label `m2-regression` and a matching sanitized runtime log receipt;
+- one real Hermes Cloud session with a durable title, followed by the same-session task `17 * 23` returning `391` and a matching request receipt;
+- a native Hermes terminal-tool call hashing `m2-hermes-tool-proof` to `3a180e42ae7e215ae01e611021419053b015e9d585cddac7aeb145b549ec0632`, with the observed tool name and safe request correlation;
+- same-session recall of `m2-hermes-tool-proof` from Hermes history;
+- invalid-session and secret-disclosure checks, including confirmation that unauthenticated MCP requests fail before a Hermes ticket or task is created;
+- plugin reconnect/refresh and a supported state-preserving restart or reconnect of the existing managed agent, followed by a successful read and continuation of the same session;
+- the no-plugin control answering `19 * 29` as `551` without invoking a plugin tool.
+
+Do not mark M2 green until every item is directly observed and recorded without secret values. A `READY` deployment or passing CI from the older PR #8 implementation is not evidence for this gate.
 
 ## Verified M1 implementation state
 
@@ -189,9 +179,7 @@ Reference:
 
 - https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
 
-The documented Portal MCP surface does **not** establish a Hermes session/chat tool or direct per-instance Hermes API ingress.
-
-Therefore the project still must verify a supported machine path from our MCP service to the actual Hermes runtime during M2.
+The documented Portal MCP surface remains a management interface; it does not provide the task/session tools used by M2. The current working-tree adapter follows a separate Hermes Cloud native OAuth, WebSocket-ticket, and JSON-RPC path. That path is implemented locally but still needs the live acceptance evidence listed above.
 
 ## Verified repository reality
 
@@ -215,6 +203,8 @@ It does not prove that all current/future Hermes Cloud machine-access paths are 
 
 ADR 0005 therefore remains valid as an allowed fallback: run official Hermes on operator-controlled infrastructure when needed to obtain a secure machine API boundary.
 
+For M2, ADR 0007 selects the existing first-party managed Hermes Cloud agent and its native RPC path. The older operator-controlled Render definitions remain historical implementation files while the native path is being verified.
+
 ## Architecture decision now recorded
 
 ADR 0006 changes the primary consumer channel:
@@ -224,16 +214,15 @@ ADR 0006 changes the primary consumer channel:
 - the standalone Vercel UI is diagnostics/admin/testing;
 - public plugin submission follows only after the private Hermes path and user isolation are proven.
 
-This changes the consumer surface and roadmap sequencing.
-
-It does **not** replace the upstream-first harness model or ADR 0005's runtime-boundary decision.
+This changes the consumer surface and roadmap sequencing. ADR 0007 records the M2 runtime choice while preserving Hermes Cloud as the authority for its session and runtime state.
 
 ## Not yet verified
 
-- plugin -> MCP -> Hermes connectivity;
-- successful real Hermes session chat through the plugin;
-- a successful tool-capable Hermes task through the plugin;
-- the final Hermes runtime host/origin;
+- final CI and deployment for the native M2 source;
+- native OAuth refresh, WebSocket-ticket, and JSON-RPC behavior through the existing private plugin;
+- successful real Hermes session chat and tool-capable task through that plugin;
+- same-session continuation after plugin reconnect and supported managed-agent restart;
+- sanitized live logs and negative authorization/secret-disclosure results;
 - use of Sign in with ChatGPT inside the selected Hermes runtime;
 - multi-user OAuth/isolation;
 - public plugin package validation/submission/approval;
@@ -243,9 +232,7 @@ It does **not** replace the upstream-first harness model or ADR 0005's runtime-b
 
 ## Current critical path
 
-M1 is complete. Stop M1 work here.
-
-The next milestone is M2: prove one real Hermes task through the now-verified ChatGPT -> personal plugin -> MCP boundary. Do not expand M1 with Hermes, OAuth, OpenClaw, public submission, or unrelated product work.
+M1 is complete. M2 uses the existing private ChatGPT plugin -> Vercel MCP adapter -> first-party managed Hermes Cloud agent `Fair-dinkum Esky` path recorded in ADR 0007. Finish the native code's CI/deployment and live acceptance before moving to M3. Do not merge PR #8 or begin M3 before the native M2 gate passes. The older Render bridge remains in the repository as historical implementation work and is not the M2 acceptance path.
 
 ## State-update rule
 

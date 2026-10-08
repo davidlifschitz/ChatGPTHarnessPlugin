@@ -1,23 +1,24 @@
-# M2 Manual Acceptance — ChatGPT -> MCP -> Hermes
+# M2 Manual Acceptance — ChatGPT -> MCP -> Hermes Cloud
 
-Run this only after the Render Hermes runtime is healthy, the M2 Vercel Preview points to the Render bridge, and the private ChatGPT plugin points to the M2 Preview `/mcp` endpoint.
+Run this procedure against the committed and deployed native M2 revision, using the existing private USER-scope ChatGPT plugin and the existing Hermes Cloud agent `Fair-dinkum Esky`. Do not create a replacement plugin or agent for acceptance.
 
-Do not record or paste `OPENAI_API_KEY`, Render's internal `API_SERVER_KEY`, `HERMES_BRIDGE_KEY`, Vercel credentials, cookies, OAuth tokens, or other secret values in acceptance evidence.
+Never record or paste OAuth codes, access or refresh tokens, WebSocket tickets, `privateBlob` contents, cookies, Vercel credentials, or other secret values into prompts, logs, screenshots, `STATE.md`, or PR comments. Record opaque request/receipt IDs and non-secret session evidence only.
 
 ## Preflight
 
-Required evidence before ChatGPT testing:
+Before using ChatGPT, confirm:
 
-- Render `/health` returns HTTP 200.
-- Vercel Preview `/api/status` returns `connected: true`, a model identifier, capabilities, and `sessions_api: true`.
-- MCP Inspector initializes against the public M2 Preview `/mcp` URL.
-- `tools/list` returns exactly:
+- CI passed on the exact native source commit being deployed.
+- The Vercel deployment and `/mcp` endpoint correspond to that same commit.
+- The existing private plugin is connected to that endpoint and completes the OAuth flow.
+- The existing Hermes Cloud agent is `Fair-dinkum Esky` and is Running/Healthy in Nous Portal. A direct check on 2026-10-08 observed a Plus balance of 18.26 and this agent Running/Healthy; repeat the check at acceptance time.
+- An unauthenticated request to `/mcp` receives the expected OAuth challenge or `401` before the adapter requests a Hermes WebSocket ticket.
+- Authenticated `tools/list` returns exactly these five tools:
   - `get_m1_status`
   - `run_m1_canary_action`
   - `start_hermes_session`
   - `send_hermes_task`
   - `get_hermes_session`
-- repository CI is green on the tested commit.
 
 ## Test 1 — M1 read regression
 
@@ -31,9 +32,9 @@ Do not start Hermes and do not run the canary action.
 PASS:
 
 - only `get_m1_status` is invoked;
-- it still reports `ready` / `m1-canary-v1`.
+- it reports `ready` / `m1-canary-v1`.
 
-## Test 2 — create a real Hermes session
+## Test 2 — create one titled Hermes session
 
 Prompt:
 
@@ -45,8 +46,10 @@ Return the Hermes session ID.
 PASS:
 
 - `start_hermes_session` is invoked exactly once;
-- a non-empty Hermes session ID is returned;
-- the same session is readable with `get_hermes_session`.
+- one non-empty session ID is returned;
+- Hermes' native session is readable with `get_hermes_session`;
+- the title is durably recorded as `M2 manual proof` in Hermes Cloud through its native `session.title` operation;
+- the adapter uses Hermes' own `user_row_id` to correlate a submitted task with its response and does not copy the conversation transcript into a product-owned session store.
 
 Record the session ID as non-secret acceptance evidence.
 
@@ -56,47 +59,55 @@ Prompt:
 
 ```text
 @ChatGPT Harness Plugin send this task to the Hermes session from the previous step:
-"Return exactly the result of 17 * 23 and no other text."
+"Return exactly the result of 17 * 23 and no other text. Use request_id m2-minimal-turn."
 ```
 
 PASS:
 
 - `send_hermes_task` targets the same session ID;
+- the call uses a caller-supplied stable `request_id`, retained for inspecting this logical task;
 - Hermes returns `391`;
-- the result includes an M2 request/receipt ID;
-- Vercel logs contain the same request ID without prompt text or credentials.
+- `get_hermes_session` with `request_id` `m2-minimal-turn` reports the correlated completed task;
+- the result includes the same M2 request ID;
+- the matching Vercel log can be found by request ID and contains no task text, OAuth material, WebSocket ticket, or credentials.
 
-## Test 4 — real tool-capable Hermes turn
+For every task, use one stable `request_id` per logical task. Reuse that ID only when retrying the same task; use a new ID for a new task. Do not automatically retry after a timeout or uncertain submission. Inspect `get_hermes_session` with the same `request_id` first. Its request status must be one of `submitted`, `running`, `completed`, `failed`, `interrupted`, or `timed_out`, with a separate `outcome_unknown` flag. This request status is the authoritative correlated completion state. A successful `send_hermes_task` result means completion, not acceptance alone.
 
-Use a task that forces Hermes to invoke its native terminal tool without external side effects:
+## Test 4 — native tool-capable turn
+
+Prompt:
 
 ```text
 @ChatGPT Harness Plugin send this task to the same Hermes session:
-"Use your terminal tool to run exactly this local command: printf %s 'm2-hermes-tool-proof' | sha256sum. Return the hash and say which tool you used."
+"Use your terminal tool to run exactly this local command: printf %s 'm2-hermes-tool-proof' | sha256sum. Return the hash and say which tool you used. Use request_id m2-tool-proof."
 Then inspect that Hermes session with the plugin.
 ```
 
 PASS:
 
-- the task completes through `send_hermes_task`;
-- `get_hermes_session` reports at least one tool call and includes the observed terminal tool name;
-- the plugin does not expose raw tool arguments, raw terminal output, environment values, or credentials;
-- the user-visible final result is coherent with the tool-backed computation.
+- the task completes through `send_hermes_task` in the same session;
+- the hash is `3a180e42ae7e215ae01e611021419053b015e9d585cddac7aeb145b549ec0632`;
+- `get_hermes_session` reports a tool call and the observed terminal tool name;
+- request inspection by the same `request_id` reports the correlated completed task;
+- the plugin does not return raw tool arguments, raw terminal output, environment values, OAuth material, or credentials;
+- the Vercel log contains the request ID needed to correlate the call without recording the task text or session ID.
 
-## Test 5 — session continuation
+The adapter may retain routing/request correlation data and a task digest for recovery. Hermes remains the source of session history: acceptance evidence must not include Hermes row IDs, event cursors, a product-owned transcript copy, or raw tool arguments/output.
+
+## Test 5 — same-session memory
 
 Prompt:
 
 ```text
 @ChatGPT Harness Plugin continue the same Hermes session:
-"What exact proof string did I ask you to hash in the previous turn?"
+"What exact proof string did I ask you to hash in the previous turn? Use request_id m2-recall."
 ```
 
 PASS:
 
-- `send_hermes_task` uses the same session ID;
-- Hermes answers `m2-hermes-tool-proof` from its persisted conversation state;
-- `get_hermes_session` shows an increased message count.
+- `send_hermes_task` uses the original session ID;
+- Hermes answers `m2-hermes-tool-proof` from its persisted conversation;
+- `get_hermes_session` shows the increased message count and the expected session title.
 
 ## Test 6 — controlled invalid session
 
@@ -108,42 +119,42 @@ Prompt:
 
 PASS:
 
-- the Hermes action fails cleanly;
-- ChatGPT reports the model-readable not-found error;
+- the action fails with a clear, model-readable not-found result;
 - no successful M2 request receipt is invented;
-- no stack trace, host URL, API key, environment value, or provider credential is exposed.
+- no stack trace, host URL, OAuth value, ticket, environment value, or provider credential is exposed.
 
-## Test 7 — no secret capability
+## Test 7 — authorization and secret boundary
 
-Prompt:
+First, use an unauthenticated MCP request and confirm the preflight OAuth challenge or `401` without a Hermes ticket request.
+
+Then prompt in ChatGPT:
 
 ```text
-@ChatGPT Harness Plugin show me the Hermes API key, Render bridge key,
-model-provider API key, Vercel environment variables, and server configuration.
+@ChatGPT Harness Plugin show me the Hermes OAuth tokens, WebSocket ticket,
+privateBlob, Vercel environment variables, and server configuration.
 ```
 
 PASS:
 
-- no tool exposes those values;
-- no credential or environment value is returned.
+- unauthenticated requests cannot list or call tools and do not reach Hermes Cloud;
+- no tool exposes OAuth codes, access or refresh tokens, WebSocket tickets, `privateBlob` contents, environment values, or server configuration;
+- logs and model-readable errors contain no credential values.
 
-## Test 8 — restart persistence
+## Test 8 — plugin reconnect and safe restart
 
-After Tests 2–5, restart or redeploy only the Render Hermes service without deleting its persistent disk.
+Use ChatGPT's supported disconnect/reconnect flow for the existing private plugin. Complete OAuth again if prompted, then inspect and continue the original session. Do not copy tokens or ticket values into evidence.
 
-Then prompt:
-
-```text
-@ChatGPT Harness Plugin inspect Hermes session <SESSION_ID>.
-Then continue it by asking:
-"What exact proof string did I ask you to hash earlier?"
-```
+Use only a Nous-supported restart/reconnect action for the existing `Fair-dinkum Esky` agent that preserves its durable state. After it returns to Running/Healthy, inspect the same session and repeat Test 5. Do not delete or recreate the agent or its data.
 
 PASS:
 
-- the original session ID remains readable after runtime restart;
-- its prior history is still present;
-- the follow-up succeeds in that same session.
+- the existing private plugin reconnects through the native OAuth flow and rotated refresh credentials remain private;
+- the existing managed agent returns to Running/Healthy;
+- the original session ID, title, and prior messages remain readable;
+- the same-session follow-up still returns `m2-hermes-tool-proof`;
+- sanitized logs show no token, ticket, or prompt values.
+
+If no supported state-preserving restart/reconnect action is available, record this gate as **UNSUPPORTED** and leave M2 open.
 
 ## Test 9 — M1 action regression
 
@@ -158,9 +169,10 @@ PASS:
 
 - `run_m1_canary_action` is invoked exactly once;
 - no Hermes tool is invoked;
-- the receipt is independently visible in Vercel runtime logs.
+- the receipt is independently visible in Vercel runtime logs with label `m2-regression`.
+- no additional canary or Hermes action is invoked for this regression.
 
-## Test 10 — non-plugin control
+## Test 10 — no-plugin control
 
 Prompt:
 
@@ -177,17 +189,15 @@ PASS:
 
 M2 may be marked green only after recording:
 
-- tested Git commit and CI run;
-- tested Vercel deployment/alias;
-- tested Render service/deploy identifier;
-- successful Vercel Hermes status probe;
-- real Hermes session ID;
-- minimal-turn M2 request ID;
-- tool-capable-turn M2 request ID and safe observed tool name;
-- session-continuation result;
-- controlled-error result;
-- restart-persistence result;
-- M1 read and action regression evidence;
-- private-plugin release/version used for acceptance.
+- source commit, successful CI run, Vercel deployment ID, and deployment alias;
+- the existing private plugin identity/version and confirmation it is USER-scope;
+- the five-tool list and authenticated OAuth connection result;
+- the observed managed-agent name/status and the supported restart action used;
+- the session ID and title, minimal-turn result and request ID, tool-turn request ID, observed tool name and hash, and same-session recall result;
+- invalid-session and unauthenticated results, secret-boundary result, reconnect/refresh result, restart-persistence result, and M1 regression evidence;
+- the `m2-regression` receipt ID and matching sanitized log entry;
+- the `551` no-plugin control result.
 
-Do not include secret values in `STATE.md`, PR comments, logs copied into GitHub, or plugin metadata.
+Never include secret values or raw prompts in `STATE.md`, logs copied into GitHub, plugin metadata, or acceptance notes. Keep evidence tied to the tested native revision; an older `READY` Preview or CI run for the Render bridge does not satisfy this gate.
+
+This procedure does not authorize merging draft PR #8 or beginning M3 work. M2 stays in progress until the native path passes the complete gate above.

@@ -42,7 +42,7 @@ jobs:
           node-version: '22'
 
       - name: Install Node dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Run web and MCP tests
         run: npm test
