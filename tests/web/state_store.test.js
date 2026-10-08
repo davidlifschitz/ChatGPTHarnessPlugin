@@ -111,6 +111,7 @@ test('Blob state store reads private uncached ETags and permits one competing CA
   const firstGet = fake.calls.find((call) => call.operation === 'get');
   assert.equal(firstGet.options.access, 'private');
   assert.equal(firstGet.options.useCache, false);
+  assert.equal(new Headers(firstGet.options.headers).get('accept-encoding'), 'identity');
   assert.ok(firstGet.options.abortSignal instanceof AbortSignal);
 
   const results = await Promise.all([
@@ -157,6 +158,50 @@ test('Blob state store accepts the SDK get result blob.etag metadata shape', asy
   const record = await store.readVersionedJson(path);
   assert.deepEqual(record, { value: { state: 'pending' }, version: etag });
   assert.equal(await store.compareAndSwapJson(path, etag, { state: 'consumed' }), true);
+});
+
+test('weak Blob ETags allow unversioned reads but cannot authorize CAS', async (t) => {
+  const fake = createFakeBlobSdk();
+  const path = 'mcp-oauth/state/weak-etag';
+  const etag = 'W/"compressed-state"';
+  const value = { state: 'pending' };
+  let putCount = 0;
+  fake.sdk.get = async (_path, options) => {
+    fake.calls.push({ operation: 'get', path: _path, options });
+    return {
+      headers: new Headers({ etag }),
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue(Buffer.from(JSON.stringify(value)));
+          controller.close();
+        },
+      }),
+      blob: { etag },
+    };
+  };
+  fake.sdk.put = async () => {
+    putCount += 1;
+  };
+  setStateStoreForTests(null);
+  setBlobSdkForTests(fake.sdk);
+  t.after(() => {
+    setStateStoreForTests(null);
+    setBlobSdkForTests(null);
+  });
+
+  const store = getStateStore();
+  assert.deepEqual(await store.readJson(path), value);
+  await assert.rejects(store.readVersionedJson(path), /State record version is unavailable/);
+  await assert.rejects(
+    store.compareAndSwapJson(path, etag, { state: 'consumed' }),
+    /State version is invalid/,
+  );
+  assert.equal(putCount, 0);
+  const getCalls = fake.calls.filter((call) => call.operation === 'get');
+  assert.ok(getCalls.every((call) => call.options.useCache === false));
+  assert.ok(getCalls.every((call) => (
+    new Headers(call.options.headers).get('accept-encoding') === 'identity'
+  )));
 });
 
 test('state paths reject traversal, absolute paths, oversized hierarchies, and unusual characters', async (t) => {
