@@ -288,3 +288,19 @@ test('private-state failures identify only a safe stage and category', async () 
   assert.equal(JSON.stringify(res.body).includes('SECRET_SENTINEL'), false);
   assert.equal(JSON.stringify(res.body).includes('internal.invalid'), false);
 });
+
+test('private-state validation rejects a duplicate create that changes the stored row', async () => {
+  const original = stateStore.compareAndSwapJson.bind(stateStore);
+  stateStore.compareAndSwapJson = async (path, version, value) => {
+    if (version === null && await stateStore.readVersionedJson(path)) {
+      await stateStore.writeJson(path, value);
+      return false;
+    }
+    return original(path, version, value);
+  };
+  const res = await call({action: 'verify_state_store'});
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.stage, 'create_conflict');
+  assert.equal(res.body.kind, 'verification_failed');
+  assert.equal(res.body.verified, undefined);
+});

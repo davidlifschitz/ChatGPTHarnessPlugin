@@ -58,7 +58,10 @@ async function verifyStateStore() {
     checks.conditional_writes = results.filter(Boolean).length === 1
       && latest?.version !== first.version && [2, 3].includes(latest?.value?.revision);
     if (!checks.conditional_writes) await storageStage('conditional_writes', () => { throw new Error('State verification failed.'); });
-    checks.create_conflict = await storageStage('create_conflict', () => store.compareAndSwapJson(path, null, { revision: 4 })) === false;
+    const duplicate = await storageStage('create_conflict', () => store.compareAndSwapJson(path, null, { revision: 4 }));
+    const afterDuplicate = await storageStage('create_conflict', () => store.readVersionedJson(path));
+    checks.create_conflict = duplicate === false && afterDuplicate?.version === latest.version
+      && afterDuplicate?.value?.revision === latest.value.revision;
     if (!checks.create_conflict) await storageStage('create_conflict', () => { throw new Error('State verification failed.'); });
   } finally {
     if (created) await storageStage('cleanup', () => store.delete(path));

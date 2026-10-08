@@ -489,6 +489,80 @@ test('actual Blob SDK precondition errors return false for conditional and creat
   assert.equal(writes[2].allowOverwrite, false);
 });
 
+test('Blob SDK create errors return false only after an uncached versioned reread finds an existing row', async (t) => {
+  const { BlobError } = await import('@vercel/blob');
+  assert.equal(typeof BlobError, 'function');
+  const fake = createFakeBlobSdk();
+  const existingPath = 'mcp-oauth/state/already-created';
+  const existingValue = { state: 'pending' };
+  const existingVersion = 'etag-original';
+  fake.blobs.set(existingPath, {
+    body: JSON.stringify(existingValue),
+    version: existingVersion,
+  });
+  fake.sdk.BlobError = BlobError;
+  let errorToThrow = new BlobError('provider rejected create-only put');
+  fake.sdk.put = async () => {
+    throw errorToThrow;
+  };
+  setStateStoreForTests(null);
+  setBlobSdkForTests(fake.sdk);
+  t.after(() => {
+    setStateStoreForTests(null);
+    setBlobSdkForTests(null);
+  });
+
+  const store = getStateStore();
+  assert.equal(await store.createJson(existingPath, { state: 'replacement' }), false);
+  const unchanged = await store.readVersionedJson(existingPath);
+  assert.deepEqual(unchanged.value, existingValue);
+  assert.equal(unchanged.version, existingVersion);
+  const confirmationRead = fake.calls.find((call) => (
+    call.operation === 'get' && call.path === existingPath
+  ));
+  assert.equal(confirmationRead.options.useCache, false);
+
+  assert.equal(await store.compareAndSwapJson(existingPath, null, { state: 'replacement' }), false);
+  const unchangedAfterCas = await store.readVersionedJson(existingPath);
+  assert.deepEqual(unchangedAfterCas.value, existingValue);
+  assert.equal(unchangedAfterCas.version, existingVersion);
+
+  const missingPath = 'mcp-oauth/state/create-provider-error';
+  const providerError = new BlobError('provider rejected fresh create');
+  errorToThrow = providerError;
+  await assert.rejects(
+    store.compareAndSwapJson(missingPath, null, { state: 'pending' }),
+    (error) => error === providerError,
+  );
+  assert.equal(fake.blobs.has(missingPath), false);
+
+  const unreadablePath = 'mcp-oauth/state/unreadable-existing-row';
+  fake.blobs.set(unreadablePath, { body: '{invalid', version: 'etag-unreadable' });
+  await assert.rejects(
+    store.compareAndSwapJson(unreadablePath, null, { state: 'pending' }),
+    (error) => error === providerError,
+  );
+
+  const spoofPath = 'mcp-oauth/state/spoofed-sdk-error';
+  fake.blobs.set(spoofPath, {
+    body: JSON.stringify(existingValue),
+    version: existingVersion,
+  });
+  const spoofError = Object.assign(new Error('spoofed SDK error'), { name: 'BlobError' });
+  errorToThrow = spoofError;
+  const readsBeforeSpoof = fake.calls.filter((call) => (
+    call.operation === 'get' && call.path === spoofPath
+  )).length;
+  await assert.rejects(
+    store.compareAndSwapJson(spoofPath, null, { state: 'replacement' }),
+    (error) => error === spoofError,
+  );
+  const readsAfterSpoof = fake.calls.filter((call) => (
+    call.operation === 'get' && call.path === spoofPath
+  )).length;
+  assert.equal(readsAfterSpoof, readsBeforeSpoof);
+});
+
 test('CAS does not convert generic error text into a version conflict', async (t) => {
   const fake = createFakeBlobSdk();
   let errorToThrow = new Error('upstream reported a conflict while storing state');
