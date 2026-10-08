@@ -558,25 +558,33 @@ test('correlated terminal event preserves failed and interrupted statuses', asyn
 });
 
 test('completion without its exact persisted final assistant row stays unknown and keeps the session blocked', async () => {
-  await withGateway(async ({ store, releaseTurn }) => {
+  await withGateway(async ({ store, releaseTurn, promptSubmits }) => {
     const created = await createHermesSession({ title: 'Unproven terminal event' });
     await assert.rejects(
       () => sendHermesSessionMessage(created.session_id, 'wait for unproven completion', { requestId: 'unproven_final_row' }),
-      (error) => error.code === 'hermes_turn_timeout' && error.outcome_unknown === true,
+      isUnknownTurnTimeout,
     );
+    const requestDigest = crypto.createHash('sha256').update(`${created.session_id}\0unproven_final_row`).digest('hex');
+    const guardDigest = crypto.createHash('sha256').update(created.session_id).digest('hex');
+    const record = await store.readVersionedJson(`m2/hermes/byid/${requestDigest}`);
+    const guard = await store.readVersionedJson(`m2/hermes/requests/${guardDigest}`);
+    assert.equal(record.value.status, 'timed_out');
+    assert.equal(record.value.outcome_unknown, true);
+    assert.equal(record.value.last_seen_seq, record.value.baseline_seq);
+    assert.equal(guard.value.status, 'timed_out');
+    assert.equal(guard.value.outcome_unknown, true);
+    assert.equal(promptSubmits(), 1);
+
     releaseTurn();
     await new Promise((resolve) => setTimeout(resolve, 40));
     const inspected = await getHermesSession(created.session_id, { requestId: 'unproven_final_row' });
     assert.equal(inspected.execution.status, 'timed_out');
     assert.equal(inspected.execution.outcome_unknown, true);
-    const requestDigest = crypto.createHash('sha256').update(`${created.session_id}\0unproven_final_row`).digest('hex');
-    const record = await store.readVersionedJson(`m2/hermes/byid/${requestDigest}`);
-    assert.equal(record.value.status, 'timed_out');
-    assert.equal(record.value.last_seen_seq, record.value.baseline_seq);
     await assert.rejects(
       () => sendHermesSessionMessage(created.session_id, 'a different task', { requestId: 'unproven_new_key' }),
       { code: 'hermes_session_busy' },
     );
+    assert.equal(promptSubmits(), 1);
   }, { holdTurn: true, turnTimeoutMs: 1000, omitFinalAssistantRow: true });
 });
 
