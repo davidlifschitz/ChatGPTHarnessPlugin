@@ -313,4 +313,10 @@ test('operator authorization inspection returns only fixed flags without refresh
   assert.deepEqual(res.body, {connected: true, refresh: 'none', expired: false, weak_version: false});
   assert.equal(JSON.stringify(res.body).includes('SECRET_SENTINEL'), false);
   assert.equal((await call({action: 'inspect_hermes_auth', path: 'arbitrary'})).statusCode, 400);
+  const record = await readCredentialRecord();
+  await stateStore.writeJson('m2/hermes/credentials', {...record.value,
+    refresh_state: {status: 'refreshing', lease_id: 'PRIVATE_LEASE_SENTINEL', lease_until: Date.now() + 1000}});
+  const pending = await call({action: 'inspect_hermes_auth'});
+  assert.equal(pending.body.refresh, 'refreshing');
+  assert.equal(JSON.stringify(pending.body).includes('PRIVATE_LEASE_SENTINEL'), false);
 });

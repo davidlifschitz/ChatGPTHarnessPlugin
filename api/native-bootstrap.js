@@ -138,7 +138,7 @@ module.exports = async function nativeBootstrapHandler(req, res) {
       const record = await readCredentialRecord();
       const refresh = record?.value?.refresh_state;
       const status = refresh === null || refresh === undefined ? 'none'
-        : ['claimed', 'uncertain'].includes(refresh.status) ? refresh.status : 'unknown';
+        : ['refreshing', 'uncertain'].includes(refresh.status) ? refresh.status : 'unknown';
       return sendJson(res, 200, {connected: Boolean(record), refresh: status,
         expired: record ? record.value.expires_at <= Math.floor(Date.now() / 1000) : false,
         weak_version: Boolean(record?.version?.startsWith('W/'))});
