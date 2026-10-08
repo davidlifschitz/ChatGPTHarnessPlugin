@@ -133,6 +133,17 @@ module.exports = async function nativeBootstrapHandler(req, res) {
       stage: STORE_PROBE_STAGES.includes(error.probeStage) ? error.probeStage : 'initialization',
       kind: STORE_FAILURE_KINDS.includes(error.probeKind) ? error.probeKind : 'storage_error' }); }
   }
+  if (body?.action === 'inspect_hermes_auth' && exactKeys(body, ['action'])) {
+    try {
+      const record = await readCredentialRecord();
+      const refresh = record?.value?.refresh_state;
+      const status = refresh === null || refresh === undefined ? 'none'
+        : ['claimed', 'uncertain'].includes(refresh.status) ? refresh.status : 'unknown';
+      return sendJson(res, 200, {connected: Boolean(record), refresh: status,
+        expired: record ? record.value.expires_at <= Math.floor(Date.now() / 1000) : false,
+        weak_version: Boolean(record?.version?.startsWith('W/'))});
+    } catch { return sendJson(res, 503, {error: 'Hermes authorization state could not be inspected.'}); }
+  }
   if (body?.action === 'verify_hermes_refresh' && exactKeys(body, ['action'])) {
     try { return sendJson(res, 200, await verifyHermesRefresh()); }
     catch { return sendJson(res, 503, {error: 'Hermes credential refresh verification failed.'}); }

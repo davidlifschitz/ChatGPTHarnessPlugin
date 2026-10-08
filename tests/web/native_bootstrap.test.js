@@ -304,3 +304,13 @@ test('private-state validation rejects a duplicate create that changes the store
   assert.equal(res.body.kind, 'verification_failed');
   assert.equal(res.body.verified, undefined);
 });
+
+test('operator authorization inspection returns only fixed flags without refreshing', async () => {
+  assert.equal((await call({action: 'inspect_hermes_auth'}, false)).statusCode, 401);
+  await persistCredentials(credentials());
+  const res = await call({action: 'inspect_hermes_auth'});
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, {connected: true, refresh: 'none', expired: false, weak_version: false});
+  assert.equal(JSON.stringify(res.body).includes('SECRET_SENTINEL'), false);
+  assert.equal((await call({action: 'inspect_hermes_auth', path: 'arbitrary'})).statusCode, 400);
+});
