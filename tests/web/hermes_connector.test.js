@@ -21,6 +21,15 @@ function json(res, status, body) {
   res.end(data);
 }
 
+function isUnknownTurnTimeout(error) {
+  assert.equal(error.statusCode, 504);
+  // The turn, stage RPC, or enclosing deadline may expire first. Durable
+  // request and guard assertions below establish the same unknown outcome.
+  assert.ok(['hermes_turn_timeout', 'hermes_rpc_timeout', 'hermes_native_send_deadline'].includes(error.code));
+  if (error.code === 'hermes_turn_timeout') assert.equal(error.outcome_unknown, true);
+  return true;
+}
+
 async function withGateway(fn, options = {}) {
   const oldOrigin = process.env.HERMES_CLOUD_ORIGIN;
   const oldTurnTimeout = process.env.HERMES_TURN_TIMEOUT_MS;
@@ -497,12 +506,20 @@ test('concurrent same-key submission is single-shot and inspection reconciles a 
     await first;
   }, { holdTurn: true });
 
-  await withGateway(async ({ releaseTurn, promptSubmits }) => {
+  await withGateway(async ({ releaseTurn, promptSubmits, store }) => {
     const created = await createHermesSession({ title: 'Timed out native turn' });
     await assert.rejects(
       () => sendHermesSessionMessage(created.session_id, 'reconcile me', { requestId: 'timed_out_key' }),
-      (error) => error.code === 'hermes_turn_timeout' && error.outcome_unknown === true,
+      isUnknownTurnTimeout,
     );
+    const digest = crypto.createHash('sha256').update(`${created.session_id}\0timed_out_key`).digest('hex');
+    const guardDigest = crypto.createHash('sha256').update(created.session_id).digest('hex');
+    const record = await store.readVersionedJson(`m2/hermes/byid/${digest}`);
+    const guard = await store.readVersionedJson(`m2/hermes/requests/${guardDigest}`);
+    assert.equal(record.value.status, 'timed_out');
+    assert.equal(record.value.outcome_unknown, true);
+    assert.equal(guard.value.status, 'timed_out');
+    assert.equal(guard.value.outcome_unknown, true);
     releaseTurn();
     await new Promise((resolve) => setTimeout(resolve, 30));
     const inspected = await getHermesSession(created.session_id, { requestId: 'timed_out_key' });
@@ -564,12 +581,20 @@ test('completion without its exact persisted final assistant row stays unknown a
 });
 
 test('terminal event before submit acknowledgement cannot settle across a replay epoch change', async () => {
-  await withGateway(async ({ promptSubmits }) => {
+  await withGateway(async ({ promptSubmits, store }) => {
     const created = await createHermesSession({ title: 'Replay epoch changed during submit' });
     await assert.rejects(
       () => sendHermesSessionMessage(created.session_id, 'wait for acknowledgement', { requestId: 'epoch_changed_during_submit' }),
-      (error) => error.code === 'hermes_turn_timeout' && error.outcome_unknown === true,
+      isUnknownTurnTimeout,
     );
+    const requestDigest = crypto.createHash('sha256').update(`${created.session_id}\0epoch_changed_during_submit`).digest('hex');
+    const guardDigest = crypto.createHash('sha256').update(created.session_id).digest('hex');
+    const record = await store.readVersionedJson(`m2/hermes/byid/${requestDigest}`);
+    const guard = await store.readVersionedJson(`m2/hermes/requests/${guardDigest}`);
+    assert.equal(record.value.status, 'timed_out');
+    assert.equal(record.value.outcome_unknown, true);
+    assert.equal(guard.value.status, 'timed_out');
+    assert.equal(guard.value.outcome_unknown, true);
     const inspected = await getHermesSession(created.session_id, { requestId: 'epoch_changed_during_submit' });
     assert.equal(promptSubmits(), 1);
     assert.equal(inspected.execution.status, 'timed_out');
