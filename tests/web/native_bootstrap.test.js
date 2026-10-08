@@ -276,3 +276,15 @@ test('private-state validation checks fresh-read/CAS/create-conflict semantics a
   assert.deepEqual(res.body.checks, { create: true, consistent_read: true,
     conditional_writes: true, create_conflict: true, cleanup: true });
 });
+
+test('private-state failures identify only a safe stage and category', async () => {
+  stateStore.readVersionedJson = async () => {
+    throw new Error('Private provider failure SECRET_SENTINEL https://internal.invalid');
+  };
+  const res = await call({action: 'verify_state_store'});
+  assert.equal(res.statusCode, 503);
+  assert.deepEqual(res.body, {error: 'Private state verification failed.',
+    stage: 'consistent_read', kind: 'storage_error'});
+  assert.equal(JSON.stringify(res.body).includes('SECRET_SENTINEL'), false);
+  assert.equal(JSON.stringify(res.body).includes('internal.invalid'), false);
+});

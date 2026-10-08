@@ -132,6 +132,33 @@ test('Blob state store reads private uncached ETags and permits one competing CA
   assert.ok(puts.slice(1).every((call) => call.options.ifMatch === first.version));
 });
 
+test('Blob state store accepts the SDK get result blob.etag metadata shape', async (t) => {
+  const fake = createFakeBlobSdk();
+  const path = 'mcp-oauth/states/sdk-etag-shape';
+  const etag = 'sdk-blob-etag';
+  fake.blobs.set(path, { body: JSON.stringify({ state: 'pending' }), version: etag });
+  fake.sdk.get = async () => ({
+    stream: new ReadableStream({
+      start(controller) {
+        controller.enqueue(Buffer.from(JSON.stringify({ state: 'pending' })));
+        controller.close();
+      },
+    }),
+    blob: { etag },
+  });
+  setStateStoreForTests(null);
+  setBlobSdkForTests(fake.sdk);
+  t.after(() => {
+    setStateStoreForTests(null);
+    setBlobSdkForTests(null);
+  });
+
+  const store = getStateStore();
+  const record = await store.readVersionedJson(path);
+  assert.deepEqual(record, { value: { state: 'pending' }, version: etag });
+  assert.equal(await store.compareAndSwapJson(path, etag, { state: 'consumed' }), true);
+});
+
 test('state paths reject traversal, absolute paths, oversized hierarchies, and unusual characters', async (t) => {
   const fake = createFakeBlobSdk();
   setStateStoreForTests(null);

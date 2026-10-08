@@ -17,6 +17,26 @@ function exactKeys(value, keys) {
     && keys.every(key => Object.hasOwn(value, key));
 }
 
+const STORE_PROBE_STAGES = ['create', 'consistent_read', 'conditional_writes', 'create_conflict', 'cleanup', 'cleanup_read'];
+const STORE_FAILURE_KINDS = ['storage_error', 'access_denied', 'not_configured', 'version_missing', 'timeout', 'verification_failed', 'conflict'];
+
+async function storageStage(stage, operation) {
+  try { return await operation(); }
+  catch (error) {
+    const message = typeof error?.message === 'string' ? error.message : '';
+    const kind = /timed out|timeout/i.test(message) ? 'timeout'
+      : /unauthori[sz]ed|forbidden|access.denied|permission|invalid token|token.*expired/i.test(message) ? 'access_denied'
+      : /no.*credentials|no.*token.*found/i.test(message) ? 'not_configured'
+      : /version.*unavailable/i.test(message) ? 'version_missing'
+      : /already exists|precondition/i.test(message) ? 'conflict'
+      : message === 'State verification failed.' ? 'verification_failed' : 'storage_error';
+    const safe = new Error('Private state verification failed.');
+    safe.probeStage = stage;
+    safe.probeKind = kind;
+    throw safe;
+  }
+}
+
 async function verifyStateStore() {
   const store = getStateStore();
   const path = `m2/check/probe-${randomUUID()}`;
@@ -24,26 +44,27 @@ async function verifyStateStore() {
     create_conflict: false, cleanup: false };
   let created = false;
   try {
-    created = await store.compareAndSwapJson(path, null, { revision: 1 });
+    created = await storageStage('create', () => store.compareAndSwapJson(path, null, { revision: 1 }));
     checks.create = created;
     if (!created) throw new Error('State verification failed.');
-    const first = await store.readVersionedJson(path);
+    const first = await storageStage('consistent_read', () => store.readVersionedJson(path));
     checks.consistent_read = first?.value?.revision === 1 && typeof first.version === 'string';
-    if (!checks.consistent_read) throw new Error('State verification failed.');
-    const results = await Promise.all([
+    if (!checks.consistent_read) await storageStage('consistent_read', () => { throw new Error('State verification failed.'); });
+    const results = await storageStage('conditional_writes', () => Promise.all([
       store.compareAndSwapJson(path, first.version, { revision: 2 }),
       store.compareAndSwapJson(path, first.version, { revision: 3 }),
-    ]);
-    const latest = await store.readVersionedJson(path);
+    ]));
+    const latest = await storageStage('conditional_writes', () => store.readVersionedJson(path));
     checks.conditional_writes = results.filter(Boolean).length === 1
       && latest?.version !== first.version && [2, 3].includes(latest?.value?.revision);
-    checks.create_conflict = await store.compareAndSwapJson(path, null, { revision: 4 }) === false;
-    if (!checks.conditional_writes || !checks.create_conflict) throw new Error('State verification failed.');
+    if (!checks.conditional_writes) await storageStage('conditional_writes', () => { throw new Error('State verification failed.'); });
+    checks.create_conflict = await storageStage('create_conflict', () => store.compareAndSwapJson(path, null, { revision: 4 })) === false;
+    if (!checks.create_conflict) await storageStage('create_conflict', () => { throw new Error('State verification failed.'); });
   } finally {
-    if (created) await store.delete(path);
+    if (created) await storageStage('cleanup', () => store.delete(path));
   }
-  checks.cleanup = await store.readVersionedJson(path) === null;
-  if (!checks.cleanup) throw new Error('State verification failed.');
+  checks.cleanup = await storageStage('cleanup_read', () => store.readVersionedJson(path)) === null;
+  if (!checks.cleanup) await storageStage('cleanup_read', () => { throw new Error('State verification failed.'); });
   return { verified: true, checks };
 }
 
@@ -105,7 +126,9 @@ module.exports = async function nativeBootstrapHandler(req, res) {
   }
   if (body?.action === 'verify_state_store' && exactKeys(body, ['action'])) {
     try { return sendJson(res, 200, await verifyStateStore()); }
-    catch { return sendJson(res, 503, { error: 'Private state verification failed.' }); }
+    catch (error) { return sendJson(res, 503, { error: 'Private state verification failed.',
+      stage: STORE_PROBE_STAGES.includes(error.probeStage) ? error.probeStage : 'initialization',
+      kind: STORE_FAILURE_KINDS.includes(error.probeKind) ? error.probeKind : 'storage_error' }); }
   }
   if (body?.action === 'verify_hermes_refresh' && exactKeys(body, ['action'])) {
     try { return sendJson(res, 200, await verifyHermesRefresh()); }
