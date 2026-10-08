@@ -148,12 +148,16 @@ async function withGateway(fn, options = {}) {
       return;
     }
     if (method === 'session.resume') {
-      respond({
+      const resumedId = options.resumeIdentityMismatch ? 'different-stored-session' : session.storedId;
+      const result = {
         session_id: session.runtimeId,
-        stored_session_id: session.storedId,
+        resumed: resumedId,
         running: session.running,
         info: { model: options.model || 'model-native', provider: options.infoProvider || 'provider-native', api_key: 'must-not-escape' },
-      });
+      };
+      if (options.resumeShape === 'session_key') result.session_key = session.storedId;
+      else result.stored_session_id = session.storedId;
+      respond(result);
       return;
     }
     if (method === 'session.events.since') {
@@ -290,6 +294,20 @@ test('native session title forces durable creation and stored ID survives a new 
     assert.equal(serialized.includes('must-not-escape'), false);
     assert.equal(serialized.includes('native-access-sentinel'), false);
   });
+});
+
+test('resume accepts canonical session identity forms and rejects conflicting identities', async () => {
+  await withGateway(async () => {
+    const created = await createHermesSession({ title: 'Cold resume identity form' });
+    assert.equal(created.session_id, 'stored-1');
+  }, { resumeShape: 'session_key' });
+
+  await withGateway(async () => {
+    await assert.rejects(
+      () => createHermesSession({ title: 'Conflicting resume identity' }),
+      { statusCode: 502, code: 'hermes_session_identity_mismatch' },
+    );
+  }, { resumeIdentityMismatch: true });
 });
 
 test('native turn correlates persisted rows after user_row_id and exposes only real tool metadata', async () => {

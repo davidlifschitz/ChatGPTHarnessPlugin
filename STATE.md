@@ -8,13 +8,13 @@ This file records verified reality, not intended future behavior.
 
 **M2 — Hermes Plugin End-to-End**
 
-Status: **in progress — native implementation passes local validation; exact-head CI, deployment, and live Hermes acceptance are not verified**
+Status: **in progress — native CI, deployed private persistence, credential refresh, and authenticated MCP discovery pass; ChatGPT Hermes acceptance remains pending**
 
 M1 remains green. The current M2 path uses the existing private USER-scope ChatGPT plugin, a single-operator Vercel MCP adapter, and the first-party managed Hermes Cloud agent `Fair-dinkum Esky`. A direct Nous Portal check on 2026-10-08 showed the Plus balance at 18.26 and the existing agent Running/Healthy. This confirms the selected account and agent are available; it does not prove that a task has passed through the native plugin path.
 
 ## Native M2 implementation
 
-This branch implements the native Hermes Cloud path. On 2026-10-08, local validation passed 99 Node tests under Node 22.23.3, all 11 current Python tests, JavaScript syntax checks, and diff checks. Exact-head CI, deployment, and live acceptance remain outstanding. The existing private plugin remains USER-scope release `0.1.0` (`pluginrel_6abe73ef10b08191bf86cc3109ae5306`); a `0.2.0` package is prepared but has not been released.
+This branch implements the native Hermes Cloud path. On 2026-10-08, local validation passed 105 Node tests under Node 22, all 11 current Python tests, JavaScript syntax checks, and diff checks. Commit `25b6ddd24417658f4087d1ffff258497ab55d294` passed GitHub runs `37847743494` and `37847736768`; Vercel preview `dpl_2TJ6hhQjGcW6nD1uffkh1JFZctj9` is READY for that exact commit and serves the stable M2 alias. The existing private plugin remains USER-scope release `0.1.0` (`pluginrel_6abe73ef10b08191bf86cc3109ae5306`); a `0.2.0` package is prepared but has not been released.
 
 - The public MCP surface is intended to contain exactly five tools: `get_m1_status`, `run_m1_canary_action`, `start_hermes_session`, `send_hermes_task`, and `get_hermes_session`.
 - The adapter uses authorization-code OAuth with PKCE for ChatGPT and Hermes Cloud's native OAuth flow, including rotating refresh credentials held in private connector state.
@@ -29,7 +29,9 @@ The earlier published PR #8 head `50c2d5a` contained the operator-controlled Ren
 
 Independent review history includes 12 Luna passes and 5 Sol passes across the scoped implementation. The final Sol pass identified historical fingerprint loss; the lead accepted and verified its correction with the 99-test run above. No further independent pass was performed beyond the requested caps. The manual CI ingress workflow is read-only and cannot substitute for authenticated operator or ChatGPT acceptance.
 
-The separate Vercel UI store `store_D8DOz7M58EnmRlti` / `PrivateIAD1` was empty and unconnected on the 2026-10-08 check. A historical API `404` is not evidence that the native plugin is connected or that the native path works. No live bootstrap, session, plugin call, or managed-agent restart has been performed for this native source snapshot.
+The existing private Vercel Blob store `store_D8DOz7M58EnmRlti` is connected only to the existing project's M2 preview branch. Deployed verification passed create, uncached read, conditional-write contention, duplicate-create preservation, and cleanup checks. Native loopback PKCE authorization completed; the process exited after private credential bootstrap. Separate deployed invocations verified a strong credential version and successful refresh, persistence of rotated credentials, and bearer access. Authenticated direct MCP initialization discovered exactly the five intended tools and returned the M1 ready/version contract. These are direct adapter checks, not ChatGPT acceptance.
+
+The first native session attempt persisted one empty session, verified independently in the Hermes dashboard. The adapter then returned a controlled identifier error during resume. The pinned first-party protocol supports `resumed` and `session_key` canonical identity fields as well as `stored_session_id`; the adapter now validates these forms and rejects disagreements. Local validation passes 106 Node tests, 11 Python tests, and syntax checks; live verification of this correction remains pending. No model task, managed-agent restart, or updated-plugin ChatGPT acceptance has occurred.
 
 The Render runtime and bridge files from that approach remain in the repository. They have not been removed; they are not the selected M2 critical path and do not count as native acceptance evidence.
 
