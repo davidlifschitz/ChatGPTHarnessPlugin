@@ -591,7 +591,7 @@ test('M1 status remains byte-for-byte compatible at the structured result level'
   }
 });
 
-test('M1 canary action still returns unique receipts and does not log the label', async () => {
+test('canary logs only the fixed M2 regression label while preserving unique receipts', async () => {
   const client = await connectClient({ versionNegotiation: { mode: 'auto' } });
   const logs = [];
   const originalLog = console.log;
@@ -603,18 +603,36 @@ test('M1 canary action still returns unique receipts and does not log the label'
     const second = await client.callTool({
       name: 'run_m1_canary_action', arguments: {label: 'david-manual-test'},
     });
+    const regression = await client.callTool({
+      name: 'run_m1_canary_action', arguments: {label: 'm2-regression'},
+    });
     assert.equal(first.isError, undefined);
     assert.equal(second.isError, undefined);
+    assert.equal(regression.isError, undefined);
     assert.equal(first.structuredContent.success, true);
     assert.equal(first.structuredContent.label, 'david-manual-test');
     assert.equal(second.structuredContent.success, true);
     assert.equal(second.structuredContent.label, 'david-manual-test');
+    assert.equal(regression.structuredContent.success, true);
+    assert.equal(regression.structuredContent.label, 'm2-regression');
     assert.match(first.structuredContent.receipt_id, /^m1_[0-9a-f-]{36}$/);
     assert.match(second.structuredContent.receipt_id, /^m1_[0-9a-f-]{36}$/);
     assert.notEqual(first.structuredContent.receipt_id, second.structuredContent.receipt_id);
     const joined = logs.join('\n');
     assert.equal(joined.includes('david-manual-test'), false);
-    assert.match(joined, /m1_canary_action/);
+    const canaryLogs = logs
+      .map((line) => JSON.parse(line))
+      .filter((entry) => entry.event === 'm1_canary_action');
+    assert.equal(canaryLogs.length, 3);
+    assert.equal(canaryLogs[0].label, undefined);
+    assert.equal(canaryLogs[0].label_length, 'david-manual-test'.length);
+    assert.equal(canaryLogs[1].label, undefined);
+    assert.equal(canaryLogs[1].label_length, 'david-manual-test'.length);
+    assert.deepEqual(canaryLogs[2], {
+      event: 'm1_canary_action',
+      receipt_id: regression.structuredContent.receipt_id,
+      label: 'm2-regression',
+    });
   } finally {
     console.log = originalLog;
     await client.close();
