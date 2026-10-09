@@ -68,9 +68,9 @@ The gate is satisfied. This milestone proves the product channel, not Hermes yet
 
 ## M2 — Hermes Plugin End-to-End
 
-**Status:** BLOCKED on ChatGPT web host availability. The committed native adapter has passing CI and a matching deployed preview; private persistence, native refresh, real model/tool execution, timeout recovery, replay safety, and same-session memory passed directly. The existing PRIVATE / USER plugin is version 0.2.1 with its hosted Vercel endpoint. Imported-MCP Desktop only restrictions and the current personal-plan web capabilities prevent updated-plugin ChatGPT web acceptance; see [live evidence and first-party sources](docs/implementation/m2-live-evidence-2026-10-08.md).
+**Status:** BLOCKED on server-side operator approval for the existing Business custom app **ChatGPT Harness**. The native adapter has passing CI and a matching deployed preview; earlier direct persistence, refresh, model/tool execution, timeout recovery, replay safety, and memory evidence does not prove Business-app acceptance. The CLI is authenticated, but the original operator token is absent locally and its saved Vercel Secret is write-only. The app still offers Connect and admin shows zero tools; current-user-only usability remains unverified. See [current live evidence](docs/implementation/m2-live-evidence-2026-10-08.md). The separate PRIVATE / USER plugin remains a historical client, not a substitute for the requested Business flow.
 
-**Goal:** complete one real task through the existing private ChatGPT plugin, our Vercel MCP adapter, and the existing first-party managed Hermes Cloud agent `Fair-dinkum Esky`.
+**Goal:** complete one real task through the existing **ChatGPT Harness** Business app for the current user only, our Vercel MCP adapter, and the existing first-party managed Hermes Cloud agent `Fair-dinkum Esky`.
 
 **Work:**
 - keep the MCP surface to the existing M1 read/action tools plus `start_hermes_session`, `send_hermes_task`, and `get_hermes_session`;
@@ -78,7 +78,7 @@ The gate is satisfied. This milestone proves the product channel, not Hermes yet
 - connect to Hermes Cloud with a short-lived WebSocket ticket and Hermes-native JSON-RPC, keeping the Cloud session and history authoritative upstream;
 - preserve native session titles and correlate submitted turns to Hermes' own user-row identifier;
 - finish request-state/retry handling and establish CI on the exact committed native revision;
-- deploy that revision to Vercel and connect the already-existing private USER-scope plugin;
+- deploy that revision to Vercel and connect the existing Business app without workspace-wide publication;
 - run the read and canary regressions, one minimal `17 * 23` turn, the terminal hash task, and same-session recall;
 - verify invalid-session and unauthenticated behavior, secret isolation, plugin reconnect/refresh, and a supported state-preserving managed-agent restart;
 - verify the no-plugin control and record the results without credentials or other secret values.
@@ -92,7 +92,7 @@ Hermes references:
 - https://hermes-agent.nousresearch.com/docs/reference/environment-variables
 - https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
 
-**Gate:** the existing private plugin completes all checks in [the M2 manual acceptance procedure](docs/implementation/m2-manual-acceptance.md) through the native Hermes Cloud path, with evidence tied to the exact committed source and deployment. Until then, M2 remains in progress.
+**Gate:** the existing Business app completes all checks in [the M2 manual acceptance procedure](docs/implementation/m2-manual-acceptance.md) through the native Hermes Cloud path, with evidence tied to the exact committed source and deployment. Until then, M2 remains in progress and PR #8 stays draft and unmerged.
 
 ## M3 — User Authentication and Isolation
 
