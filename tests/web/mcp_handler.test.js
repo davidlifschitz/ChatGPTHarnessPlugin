@@ -591,7 +591,7 @@ test('M1 status remains byte-for-byte compatible at the structured result level'
   }
 });
 
-test('canary logs only the fixed M2 regression label while preserving unique receipts', async () => {
+test('M1 canary preserves arbitrary-label privacy and unique receipts', async () => {
   const client = await connectClient({ versionNegotiation: { mode: 'auto' } });
   const logs = [];
   const originalLog = console.log;
@@ -603,40 +603,62 @@ test('canary logs only the fixed M2 regression label while preserving unique rec
     const second = await client.callTool({
       name: 'run_m1_canary_action', arguments: {label: 'david-manual-test'},
     });
-    const regression = await client.callTool({
-      name: 'run_m1_canary_action', arguments: {label: 'm2-regression'},
-    });
     assert.equal(first.isError, undefined);
     assert.equal(second.isError, undefined);
-    assert.equal(regression.isError, undefined);
     assert.equal(first.structuredContent.success, true);
     assert.equal(first.structuredContent.label, 'david-manual-test');
     assert.equal(second.structuredContent.success, true);
     assert.equal(second.structuredContent.label, 'david-manual-test');
-    assert.equal(regression.structuredContent.success, true);
-    assert.equal(regression.structuredContent.label, 'm2-regression');
     assert.match(first.structuredContent.receipt_id, /^m1_[0-9a-f-]{36}$/);
     assert.match(second.structuredContent.receipt_id, /^m1_[0-9a-f-]{36}$/);
     assert.notEqual(first.structuredContent.receipt_id, second.structuredContent.receipt_id);
     const joined = logs.join('\n');
     assert.equal(joined.includes('david-manual-test'), false);
     const canaryLogs = logs
-      .map((line) => JSON.parse(line))
-      .filter((entry) => entry.event === 'm1_canary_action');
-    assert.equal(canaryLogs.length, 3);
-    assert.equal(canaryLogs[0].label, undefined);
-    assert.equal(canaryLogs[0].label_length, 'david-manual-test'.length);
-    assert.equal(canaryLogs[1].label, undefined);
-    assert.equal(canaryLogs[1].label_length, 'david-manual-test'.length);
-    assert.deepEqual(canaryLogs[2], {
-      event: 'm1_canary_action',
-      receipt_id: regression.structuredContent.receipt_id,
-      label: 'm2-regression',
-    });
+      .filter((line) => line.includes('"event":"m1_canary_action"'))
+      .map((line) => JSON.parse(line));
+    assert.equal(canaryLogs.length, 2);
+    assert.deepEqual(canaryLogs.map((entry) => entry.receipt_id), [
+      first.structuredContent.receipt_id,
+      second.structuredContent.receipt_id,
+    ]);
+    assert.ok(canaryLogs.every((entry) =>
+      entry.label === undefined && entry.label_length === 'david-manual-test'.length));
   } finally {
     console.log = originalLog;
     await client.close();
   }
+});
+
+test('M2 regression canary logs one receipt and makes no Hermes RPC calls', async () => {
+  await withNativeGateway(async ({accessToken, rpcMethods, websocketRequests}) => {
+    const client = await connectClient({ versionNegotiation: { mode: 'auto' } }, accessToken);
+    const logs = [];
+    const originalLog = console.log;
+    console.log = (...args) => logs.push(args.map(String).join(' '));
+    try {
+      const result = await client.callTool({
+        name: 'run_m1_canary_action', arguments: {label: 'm2-regression'},
+      });
+      assert.equal(result.isError, undefined);
+      assert.equal(result.structuredContent.success, true);
+      assert.equal(result.structuredContent.label, 'm2-regression');
+      assert.match(result.structuredContent.receipt_id, /^m1_[0-9a-f-]{36}$/);
+      const canaryLogs = logs
+        .filter((line) => line.includes('"event":"m1_canary_action"'))
+        .map((line) => JSON.parse(line));
+      assert.deepEqual(canaryLogs, [{
+        event: 'm1_canary_action',
+        receipt_id: result.structuredContent.receipt_id,
+        label: 'm2-regression',
+      }]);
+      assert.deepEqual(rpcMethods, []);
+      assert.equal(websocketRequests.length, 0);
+    } finally {
+      console.log = originalLog;
+      await client.close();
+    }
+  });
 });
 
 test('M2 tools use native Hermes Cloud RPC after OAuth and hide raw tool payloads', async () => {
