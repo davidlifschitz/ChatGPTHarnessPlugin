@@ -6,12 +6,14 @@
     "node": "22.x"
   },
   "scripts": {
-    "test": "node --test tests/web/*.test.js",
-    "check": "node --check lib/hermes.js && node --check lib/mcp.js && node --check api/status.js && node --check api/chat.js && node --check api/mcp.js"
+    "test": "node --test --test-concurrency=1 tests/web/*.test.js",
+    "check": "node --check lib/hermes.js && node --check lib/hermes-cloud-auth.js && node --check lib/hermes-cloud-rpc.js && node --check lib/state-store.js && node --check lib/http.js && node --check lib/mcp-auth.js && node --check lib/mcp.js && node --check api/status.js && node --check api/chat.js && node --check api/mcp.js && node --check api/oauth.js && node --check api/operator.js && node --check api/native-bootstrap.js && node --check tools/m2-native-authorize.js"
   },
   "dependencies": {
     "@modelcontextprotocol/node": "2.0.0",
     "@modelcontextprotocol/server": "2.2.0",
+    "@vercel/blob": "2.8.1",
+    "ws": "8.22.0",
     "zod": "4.6.5"
   },
   "devDependencies": {

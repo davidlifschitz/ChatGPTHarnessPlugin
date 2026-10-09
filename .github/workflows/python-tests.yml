@@ -6,6 +6,7 @@ on:
       - main
       - product-reset/**
       - m1/**
+      - m2/**
   pull_request:
 
 permissions:
@@ -23,14 +24,17 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run Hermes probe unit tests
-        run: python -m unittest -v tests.test_hermes_probe
+      - name: Run Python unit tests
+        run: python -m unittest -v tests.test_hermes_probe tests.test_m2_bridge
 
       - name: Compile Hermes probe
-        run: python -m py_compile tools/hermes_probe.py tests/test_hermes_probe.py
+        run: python -m py_compile tools/hermes_probe.py tests/test_hermes_probe.py tests/test_m2_bridge.py runtime/hermes/bridge.py
 
       - name: Verify Hermes probe CLI help
         run: python tools/hermes_probe.py --help
+
+      - name: Check Hermes runtime shell syntax
+        run: sh -n runtime/hermes/start-hermes.sh
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -38,7 +42,7 @@ jobs:
           node-version: '22'
 
       - name: Install Node dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Run web and MCP tests
         run: npm test

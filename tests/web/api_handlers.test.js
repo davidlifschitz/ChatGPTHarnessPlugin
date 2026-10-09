@@ -1,92 +1,56 @@
 const assert = require('node:assert/strict');
-const http = require('node:http');
 const test = require('node:test');
-
 const statusHandler = require('../../api/status');
 const chatHandler = require('../../api/chat');
 
 function mockResponse() {
   return {
-    statusCode: 200,
-    headers: {},
-    body: undefined,
+    statusCode: 200, headers: {}, body: undefined,
     setHeader(name, value) { this.headers[String(name).toLowerCase()] = value; },
     status(code) { this.statusCode = code; return this; },
     json(body) { this.body = body; return this; },
-    end() { return this; },
+    end(body) { if (body) this.body = JSON.parse(body); return this; },
   };
 }
 
-async function withHermesServer(handler, fn) {
-  const server = http.createServer(handler);
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const {port} = server.address();
-  const oldBase = process.env.HERMES_BASE_URL;
-  const oldKey = process.env.HERMES_API_KEY;
-  process.env.HERMES_BASE_URL = `http://127.0.0.1:${port}`;
-  process.env.HERMES_API_KEY = 'handler-secret';
-  try { await fn(); } finally {
-    if (oldBase === undefined) delete process.env.HERMES_BASE_URL; else process.env.HERMES_BASE_URL = oldBase;
-    if (oldKey === undefined) delete process.env.HERMES_API_KEY; else process.env.HERMES_API_KEY = oldKey;
-    await new Promise((resolve) => server.close(resolve));
-  }
-}
-
-function json(res, status, body) {
-  res.writeHead(status, {'content-type': 'application/json'});
-  res.end(JSON.stringify(body));
-}
-
-test('status route returns connection state without config', async () => {
-  await withHermesServer((req, res) => {
-    if (req.url === '/v1/capabilities') return json(res, 200, {streaming: true});
-    if (req.url === '/v1/models') return json(res, 200, {data: [{id: 'test-profile'}]});
-    return json(res, 404, {});
-  }, async () => {
-    const res = mockResponse();
-    await statusHandler({method: 'GET'}, res);
-    assert.equal(res.statusCode, 200);
-    assert.equal(res.body.connected, true);
-    assert.equal(res.body.model, 'test-profile');
-    assert.equal(JSON.stringify(res.body).includes('handler-secret'), false);
-    assert.equal(JSON.stringify(res.body).includes(process.env.HERMES_BASE_URL), false);
-  });
+test('retired direct-chat route cannot invoke a harness for any method or body', async () => {
+  const previous = global.fetch;
+  let fetches = 0;
+  global.fetch = async () => { fetches += 1; throw new Error('SECRET_SENTINEL'); };
+  try {
+    for (const method of ['POST', 'GET', 'DELETE']) {
+      const res = mockResponse();
+      await chatHandler({ method, body: { message: 'read private credentials' } }, res);
+      assert.equal(res.statusCode, 410);
+      assert.equal(res.headers['cache-control'], 'no-store');
+      assert.deepEqual(res.body, { error: 'This diagnostic action is unavailable. Use the authenticated plugin.' });
+    }
+    assert.equal(fetches, 0);
+  } finally { global.fetch = previous; }
 });
 
-test('chat route accepts a message and returns assistant text', async () => {
-  await withHermesServer((req, res) => {
-    if (req.url === '/v1/models') return json(res, 200, {data: [{id: 'test-profile'}]});
-    if (req.url === '/v1/chat/completions') return json(res, 200, {choices: [{message: {content: 'ok'}}]});
-    return json(res, 404, {});
-  }, async () => {
-    const res = mockResponse();
-    await chatHandler({method: 'POST', body: {message: 'hello'}}, res);
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, {message: 'ok', model: 'test-profile'});
-  });
-});
-
-test('routes reject unsupported methods', async () => {
-  let res = mockResponse();
-  await statusHandler({method: 'POST'}, res);
-  assert.equal(res.statusCode, 405);
-  res = mockResponse();
-  await chatHandler({method: 'GET'}, res);
-  assert.equal(res.statusCode, 405);
-});
-
-test('chat route reports missing configuration without exposing secret values', async () => {
-  const oldBase = process.env.HERMES_BASE_URL;
-  const oldKey = process.env.HERMES_API_KEY;
-  delete process.env.HERMES_BASE_URL;
-  delete process.env.HERMES_API_KEY;
+test('M2 preview does not expose the legacy diagnostic status endpoint', async () => {
+  const old = process.env.M2_PUBLIC_ORIGIN;
+  process.env.M2_PUBLIC_ORIGIN = 'https://m2.example.test';
   try {
     const res = mockResponse();
-    await chatHandler({method: 'POST', body: {message: 'hello'}}, res);
-    assert.equal(res.statusCode, 503);
-    assert.match(res.body.error, /not configured/i);
+    await statusHandler({ method: 'GET' }, res);
+    assert.equal(res.statusCode, 404);
+    assert.equal(res.headers['cache-control'], 'no-store');
+    assert.deepEqual(res.body, { error: 'Not found.' });
   } finally {
-    if (oldBase !== undefined) process.env.HERMES_BASE_URL = oldBase;
-    if (oldKey !== undefined) process.env.HERMES_API_KEY = oldKey;
+    if (old === undefined) delete process.env.M2_PUBLIC_ORIGIN;
+    else process.env.M2_PUBLIC_ORIGIN = old;
   }
+});
+
+test('diagnostic status rejects unsupported methods outside M2 preview', async () => {
+  const old = process.env.M2_PUBLIC_ORIGIN;
+  delete process.env.M2_PUBLIC_ORIGIN;
+  try {
+    const res = mockResponse();
+    await statusHandler({ method: 'POST' }, res);
+    assert.equal(res.statusCode, 405);
+    assert.equal(res.headers.allow, 'GET');
+  } finally { if (old !== undefined) process.env.M2_PUBLIC_ORIGIN = old; }
 });

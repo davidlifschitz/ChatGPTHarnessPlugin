@@ -1,16 +1,76 @@
 # ChatGPT Harness Plugin — Verified Current State
 
-Last verified: 2026-10-01
+Last verified: 2026-10-09
 
 This file records verified reality, not intended future behavior.
 
 ## Current milestone
 
-**M1 — Plus Personal Plugin Proof**
+**M2 — Hermes Plugin End-to-End**
 
-Status: **green — Plus personal plugin read/action proof completed on 2026-10-01**
+Status: **BLOCKED on protected operator approval for the Business app's MCP OAuth request — native adapter, persistence, refresh, model/tool execution, and same-session memory pass directly; ChatGPT acceptance remains pending**
 
-M1 is **green**. The ChatGPT personal-plugin product channel is proven end-to-end. Hermes remains intentionally out of scope until M2.
+## Current M2 checkpoint — 2026-10-09
+
+- At the live refresh, PR #8 is OPEN, DRAFT, and unmerged at documentation-only head `dad27d214085590c9db0461ed224a799a5b1159b`. Exact-head GitHub Actions run [37884862880](https://github.com/davidlifschitz/ChatGPTHarnessPlugin/actions/runs/37884862880) passed. The stable M2 alias maps to READY deployment `dpl_7mDqrtgRYubjYZYa4MRa2kvGhidw`, built from that same head. The latest runtime-changing source remains `43027acac53fed05648666c656a3f6bb27a6aaca`; the older deployment `dpl_4r1Wq2NwLLfEoS5tkzP89Xhqb5zF` is no longer the observed alias target.
+- The stable `/mcp` endpoint returns the adapter's expected unauthenticated `401` OAuth challenge. OAuth authorization-server and protected-resource metadata return `200`; this observation does not show Vercel SSO intercepting the endpoint.
+- The existing Business custom MCP app **ChatGPT Harness** is a separate client from the private USER-scope plugin documented below. The installed user page labels it a Workspace plugin and still offers Connect; settings show dev mode and OAuth. Admin shows zero tools / “No tools found,” disabled workspace permission and connection controls, and loading Review/Configure dialogs with disabled Publish/Save. Availability Disabled and installation policy Unavailable were observed at the earlier checkpoint. No availability or publication setting was changed. Current-user-only usability and the cause of zero-tool discovery remain unverified while OAuth is incomplete.
+- ChatGPT's Connect flow previously reached “Waiting for operator approval” for safe request ID `OUGosGM4g2em8E1WoKk03w`. Its current pending/expired state is unverified; a stale waiting page does not establish status. Official Vercel CLI 63.1.0 is now authenticated as `davidlifschitz` with verified access to the existing team and project. However, the M2 branch's `M2_OPERATOR_TOKEN` is a write-only Secret, and the checked local process has no original token. No Secret was decrypted, exported, rotated, or changed. No protected lookup or approval POST was sent. ChatGPT OAuth and authenticated `tools/list` remain blocked.
+- The user explicitly approved the ChatGPT disclosure that relevant chats and memories may be shared with this app, and that app data may be used for proactive suggestions when Memory is enabled. The OAuth request still awaits the independent server-side operator approval. No private ChatGPT data was sent to Hermes because no tool call was possible.
+- Current Nous Portal state: plan Plus, available balance `$17.68`, and the existing `Fair-dinkum Esky` agent is ONLINE / Running / Healthy. No task or restart/update was performed. The earlier Update notice said it preserves data; re-check the actual first-party action after a Business-app proof session exists.
+
+The next required action is a protected operator lookup from a trusted environment already holding the original token. Approve exactly once only if pending; confirm expiry before starting a new Connect attempt. Do not read back or replace the write-only Secret. See the exact safe operations and acceptance matrix in the live-evidence document.
+
+The requested Business-app run is not interchangeable with the existing USER-scope plugin release. Preserve both identities; acceptance through a direct MCP client or the older plugin does not prove the requested ChatGPT Business app flow.
+
+M1 remains green. Earlier M2 work used the existing private USER-scope ChatGPT plugin, the same single-operator Vercel MCP adapter, and the managed Hermes Cloud agent `Fair-dinkum Esky`. The current requested client is the Business app above. Earlier direct execution evidence does not prove a task through that app.
+
+## Native M2 implementation
+
+This branch implements the native Hermes Cloud path. At an earlier implementation checkpoint, source `c254a82a1f254ecb29a7888f2209be4bf33a1f74` passed 109 Node tests under Node 22, all 11 Python tests, JavaScript syntax and diff checks, and GitHub runs `37871246814` and `37871251690`; deployment `dpl_EXzgu5cvhSG1KVdXV7tM45yuAckm` then served the stable alias. The current source/deployment mapping is recorded above. The separate private plugin remains PRIVATE / USER release `0.2.1` (`pluginrel_6ac84d5ae8c88191aaf76207649c146d`); no replacement plugin or public publication was created.
+
+- The public MCP surface is intended to contain exactly five tools: `get_m1_status`, `run_m1_canary_action`, `start_hermes_session`, `send_hermes_task`, and `get_hermes_session`.
+- The adapter uses authorization-code OAuth with PKCE for ChatGPT and Hermes Cloud's native OAuth flow, including rotating refresh credentials held in private connector state.
+- The adapter obtains a short-lived Hermes Cloud WebSocket ticket, sends it through the negotiated WebSocket subprotocol, and uses Hermes-native JSON-RPC.
+- Session creation stores the requested title through Hermes' native `session.title` operation. Hermes Cloud remains authoritative for session history; the adapter correlates a task with Hermes' own `user_row_id` rather than maintaining a transcript copy.
+- The adapter stores request-routing state, task digests, and bounded one-way credential fingerprints for correlation and safe output across rotation. It stores no transcript or stale raw credentials and exposes no Hermes row IDs, event cursors, or raw tool payloads. Fingerprint overflow fails closed before another task submission.
+- `send_hermes_task` requires a caller-supplied stable `request_id`. Reuse it only for a retry of the same logical task; use a new ID for a new task. The request guard is designed to prevent duplicate execution after an ambiguous submission. `get_hermes_session` can inspect one request by that ID and report `submitted`, `running`, `completed`, `failed`, `interrupted`, or `timed_out`, plus `outcome_unknown`; an ambiguous result must be inspected before any retry. Correctness must be established on the exact committed and deployed revision before M2 is marked green.
+
+## Historical operator-controlled M2 implementation and preview
+
+The earlier published PR #8 head `50c2d5a` contained the operator-controlled Render bridge. Its Vercel Preview deployment `dpl_8o7Kj9kwz8mp85B5xkbUonSkzSzr` reached `READY`, and its recorded CI passed for the older implementation. That historical evidence does not validate the native Hermes Cloud OAuth, WebSocket, or JSON-RPC path described above. Do not merge PR #8.
+
+Independent review history includes 12 Luna passes and 5 Sol passes across the scoped implementation. The final Sol pass identified historical fingerprint loss; the lead accepted and verified its correction with the 99-test run above. No further independent pass was performed beyond the requested caps. The manual CI ingress workflow is read-only and cannot substitute for authenticated operator or ChatGPT acceptance.
+
+The existing private Vercel Blob store `store_D8DOz7M58EnmRlti` is connected only to the existing project's M2 preview branch. Deployed verification passed create, uncached read, conditional-write contention, duplicate-create preservation, and cleanup checks. Native loopback PKCE authorization completed; the process exited after private credential bootstrap. Separate deployed invocations verified a strong credential version and successful refresh, persistence of rotated credentials, and bearer access. Authenticated direct MCP initialization discovered exactly the five intended tools and returned the M1 ready/version contract. These are direct adapter checks, not ChatGPT acceptance.
+
+The pinned first-party protocol supports `resumed` and `session_key` canonical identity fields as well as `stored_session_id`; the adapter validates these forms and rejects disagreements. Live recovery works. The adapter also uses the protected native persisted export for paired tool records and strict completion receipts, because RPC history omits those sidecars. Foreign replay epochs cannot settle negative events or advance cursors.
+
+Direct authenticated MCP execution in native session `20261008_214510_4f5165` returned exactly `391`, with completed request `m2_11a1b2cc-ee25-44c2-8bb3-ff41705725a2` and zero tool calls. The original session's configured `stealth/ox-alpha` model returned model-not-found; the first-party selector was changed to the listed free Nous model `stepfun/step-3.7-flash:free` for new sessions. The terminal proof was submitted exactly once as `m2_a0c4b085-37ef-43c0-88ff-01e6300881c5`; a free-model rate limit exceeded its bounded wait. Native persisted records independently prove the exact command and matching actual result by call ID. The deployed adapter recovered the original request as completed with one terminal call, and a completed-request replay did not add messages or execute the command again. Same-session memory then returned the proof string. The operator approved at most $1 of existing credit for the pending terminal proof; no paid-model request or purchase has been made. See [live evidence](docs/implementation/m2-live-evidence-2026-10-08.md).
+
+Actual ChatGPT's non-plugin control returned `551` without tool invocation in conversation `6ac81022-9fe8-83ea-b461-0e0a9d3ec90f`. All other updated-plugin ChatGPT acceptance checks, managed-agent restart, and the M1 action remain pending. Direct MCP evidence does not count as ChatGPT plugin acceptance.
+
+Latest verified native source is `c254a82a1f254ecb29a7888f2209be4bf33a1f74`: 109 Node tests, 11 Python tests, and syntax checks passed, as did CI runs `37871246814` and `37871251690`. Matching Vercel preview `dpl_EXzgu5cvhSG1KVdXV7tM45yuAckm` serves the stable alias. The original terminal request now recovers as completed with one matched terminal call; a completed-request replay left native history unchanged at six messages/one tool invocation. Same-session memory then returned the proof string.
+
+The existing plugin is now PRIVATE / USER version 0.2.1, release `pluginrel_6ac84d5ae8c88191aaf76207649c146d`, with the hosted stable Vercel endpoint and preserved M1 tools. No local-only app dependency is present. The current Plus personal account and imported-MCP Desktop only classification prevent the requested web flow under OpenAI's documented current capabilities. See the first-party sources and direct observations in [live evidence](docs/implementation/m2-live-evidence-2026-10-08.md). PR #8 remains draft and unmerged. No paid-model request or purchase has been made.
+
+The Render runtime and bridge files from that approach remain in the repository. They have not been removed; they are not the selected M2 critical path and do not count as native acceptance evidence.
+
+## M2 live acceptance still required
+
+M2 remains open until all of the following are observed on the same final source revision and deployment:
+
+- final CI and a deployed Vercel `/mcp` endpoint for the native implementation;
+- OAuth connection from the existing private USER-scope plugin and a live `tools/list` response containing exactly the five tools documented in the manual acceptance procedure;
+- M1 status returning `ready` / `m1-canary-v1`, followed by exactly one `run_m1_canary_action` call with label `m2-regression` and a matching sanitized runtime log receipt;
+- one real Hermes Cloud session with a durable title, followed by the same-session task `17 * 23` returning `391` and a matching request receipt;
+- a native Hermes terminal-tool call hashing `m2-hermes-tool-proof` to `3a180e42ae7e215ae01e611021419053b015e9d585cddac7aeb145b549ec0632`, with the observed tool name and safe request correlation;
+- same-session recall of `m2-hermes-tool-proof` from Hermes history;
+- invalid-session and secret-disclosure checks, including confirmation that unauthenticated MCP requests fail before a Hermes ticket or task is created;
+- plugin reconnect/refresh and a supported state-preserving restart or reconnect of the existing managed agent, followed by a successful read and continuation of the same session;
+- the no-plugin control answering `19 * 29` as `551` without invoking a plugin tool.
+
+Do not mark M2 green until every item is directly observed and recorded without secret values. A `READY` deployment or passing CI from the older PR #8 implementation is not evidence for this gate.
 
 ## Verified M1 implementation state
 
@@ -142,9 +202,7 @@ Reference:
 
 - https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
 
-The documented Portal MCP surface does **not** establish a Hermes session/chat tool or direct per-instance Hermes API ingress.
-
-Therefore the project still must verify a supported machine path from our MCP service to the actual Hermes runtime during M2.
+The documented Portal MCP surface remains a management interface; it does not provide the task/session tools used by M2. The current working-tree adapter follows a separate Hermes Cloud native OAuth, WebSocket-ticket, and JSON-RPC path. That path is implemented locally but still needs the live acceptance evidence listed above.
 
 ## Verified repository reality
 
@@ -168,6 +226,8 @@ It does not prove that all current/future Hermes Cloud machine-access paths are 
 
 ADR 0005 therefore remains valid as an allowed fallback: run official Hermes on operator-controlled infrastructure when needed to obtain a secure machine API boundary.
 
+For M2, ADR 0007 selects the existing first-party managed Hermes Cloud agent and its native RPC path. The older operator-controlled Render definitions remain historical implementation files while the native path is being verified.
+
 ## Architecture decision now recorded
 
 ADR 0006 changes the primary consumer channel:
@@ -177,16 +237,15 @@ ADR 0006 changes the primary consumer channel:
 - the standalone Vercel UI is diagnostics/admin/testing;
 - public plugin submission follows only after the private Hermes path and user isolation are proven.
 
-This changes the consumer surface and roadmap sequencing.
-
-It does **not** replace the upstream-first harness model or ADR 0005's runtime-boundary decision.
+This changes the consumer surface and roadmap sequencing. ADR 0007 records the M2 runtime choice while preserving Hermes Cloud as the authority for its session and runtime state.
 
 ## Not yet verified
 
-- plugin -> MCP -> Hermes connectivity;
-- successful real Hermes session chat through the plugin;
-- a successful tool-capable Hermes task through the plugin;
-- the final Hermes runtime host/origin;
+- final CI and deployment for the native M2 source;
+- native OAuth refresh, WebSocket-ticket, and JSON-RPC behavior through the existing private plugin;
+- successful real Hermes session chat and tool-capable task through that plugin;
+- same-session continuation after plugin reconnect and supported managed-agent restart;
+- sanitized live logs and negative authorization/secret-disclosure results;
 - use of Sign in with ChatGPT inside the selected Hermes runtime;
 - multi-user OAuth/isolation;
 - public plugin package validation/submission/approval;
@@ -196,9 +255,7 @@ It does **not** replace the upstream-first harness model or ADR 0005's runtime-b
 
 ## Current critical path
 
-M1 is complete. Stop M1 work here.
-
-The next milestone is M2: prove one real Hermes task through the now-verified ChatGPT -> personal plugin -> MCP boundary. Do not expand M1 with Hermes, OAuth, OpenClaw, public submission, or unrelated product work.
+M1 is complete. M2 uses the existing private ChatGPT plugin -> Vercel MCP adapter -> first-party managed Hermes Cloud agent `Fair-dinkum Esky` path recorded in ADR 0007. Finish the native code's CI/deployment and live acceptance before moving to M3. Do not merge PR #8 or begin M3 before the native M2 gate passes. The older Render bridge remains in the repository as historical implementation work and is not the M2 acceptance path.
 
 ## State-update rule
 

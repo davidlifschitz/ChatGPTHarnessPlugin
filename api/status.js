@@ -4,6 +4,9 @@ const { getHermesStatus, HermesError } = require('../lib/hermes');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
+  if (process.env.M2_PUBLIC_ORIGIN) {
+    return res.status(404).json({ error: 'Not found.' });
+  }
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed.' });
