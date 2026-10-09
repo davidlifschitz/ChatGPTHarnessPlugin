@@ -238,6 +238,7 @@ async function withNativeGateway(fn) {
       row_id: nextRow++,
       text: '',
       tool_calls: [toolCall],
+      finish_reason: 'tool_calls',
     });
     session.messages.push({
       role: 'tool',
@@ -251,6 +252,7 @@ async function withNativeGateway(fn) {
       role: 'assistant',
       row_id: finalAssistantRowId,
       text: assistantText,
+      finish_reason: 'stop',
     });
     session.completedTurn = {userRowId, assistantText};
     session.messages.push({
@@ -293,6 +295,29 @@ async function withNativeGateway(fn) {
       const ticket = crypto.randomBytes(24).toString('base64url');
       tickets.add(ticket);
       return json(res, 200, {ticket, ttl_seconds: 30});
+    }
+    const exportMatch = req.method === 'GET' && req.url.match(/^\/api\/sessions\/([^/]+)\/export$/);
+    if (exportMatch) {
+      if (req.headers.authorization !== 'Bearer native-access-sentinel') {
+        return json(res, 401, {error: 'unauthorized'});
+      }
+      const session = sessions.get(decodeURIComponent(exportMatch[1]));
+      if (!session) return json(res, 404, {error: 'not_found'});
+      return json(res, 200, {
+        id: session.storedId,
+        messages: session.messages.map((message) => ({
+          id: message.row_id,
+          session_id: session.storedId,
+          role: message.role,
+          content: message.role === 'assistant' && message.tool_calls
+            ? null : (message.text ?? message.content ?? ''),
+          tool_calls: message.tool_calls == null ? null : JSON.stringify(message.tool_calls),
+          tool_call_id: message.tool_call_id ?? null,
+          tool_name: message.name ?? null,
+          finish_reason: message.finish_reason ?? null,
+          display_kind: message.display_kind ?? null,
+        })),
+      });
     }
     return json(res, 404, {error: 'not_found'});
   });
@@ -370,7 +395,8 @@ async function withNativeGateway(fn) {
       return;
     }
     if (method === 'session.history') {
-      respond({messages: session.messages, count: session.messages.length});
+      const messages = session.messages.map(({tool_calls, finish_reason, ...message}) => message);
+      respond({messages, count: messages.length});
       return;
     }
     if (method === 'prompt.submit') {

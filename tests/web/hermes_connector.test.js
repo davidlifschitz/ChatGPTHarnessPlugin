@@ -71,6 +71,30 @@ async function withGateway(fn, options = {}) {
       }
       return json(res, 200, { ticket, ttl_seconds: 30 });
     }
+    const exportMatch = req.method === 'GET' && req.url.match(/^\/api\/sessions\/([^/]+)\/export$/);
+    if (exportMatch) {
+      if (!['Bearer native-access-sentinel', 'Bearer rotated-native-access-secret-sentinel'].includes(req.headers.authorization)) return json(res, 401, { error: 'unauthorized' });
+      const session = sessions.get(decodeURIComponent(exportMatch[1]));
+      if (!session) return json(res, 404, { error: 'not_found' });
+      const messages = session.messages.map((message) => ({
+        id: message.row_id,
+        session_id: options.exportRowSessionMismatch ? 'wrong-session' : session.storedId,
+        role: message.role,
+        content: message.role === 'assistant' && message.tool_calls
+          ? null : (message.text ?? message.content ?? ''),
+        tool_calls: message.tool_calls == null ? null : JSON.stringify(message.tool_calls),
+        tool_call_id: message.tool_call_id ?? null,
+        tool_name: message.name ?? null,
+        finish_reason: message.finish_reason ?? null,
+        display_kind: options.exportFailureMarker && message.role === 'assistant' ? 'failed_turn' : (message.display_kind ?? null),
+        system_prompt: 'never expose native system prompt',
+        model_config: 'never expose native config',
+        args: { secret: 'native-export-argument-sentinel' },
+        result: 'native-export-result-sentinel',
+      }));
+      if (options.exportReverseRows) messages.reverse();
+      return json(res, 200, { id: options.exportIdentityMismatch ? 'different-session' : session.storedId, messages, system_prompt: 'private' });
+    }
     return json(res, 404, { error: 'not_found' });
   });
   const wss = new WebSocketServer({
@@ -92,7 +116,7 @@ async function withGateway(fn, options = {}) {
     if (options.manyToolNames) {
       const names = Array.from({ length: 20 }, (_, index) => `tool_${String(index).padStart(2, '0')}`);
       const calls = names.map((name, index) => ({ id: `${toolCallId}-${index}`, type: 'function', function: { name, arguments: '{}' } }));
-      if (!omitToolCall) session.messages.push({ role: 'assistant', row_id: nextRow++, text: '', tool_calls: calls });
+      if (!omitToolCall) session.messages.push({ role: 'assistant', row_id: nextRow++, text: '', tool_calls: calls, finish_reason: 'tool_calls' });
       for (let index = 0; index < names.length; index += 1) {
         session.messages.push({ role: 'tool', row_id: nextRow++, name: names[index], tool_call_id: `${toolCallId}-${index}`, content: 'ok' });
       }
@@ -100,6 +124,7 @@ async function withGateway(fn, options = {}) {
       if (!omitToolCall) session.messages.push({
         role: 'assistant', row_id: nextRow++, text: '',
         tool_calls: [{ id: toolCallId, type: 'function', function: { name: toolName, arguments: '{"path":"private"}' } }],
+        finish_reason: 'tool_calls',
       });
       session.messages.push({
         role: 'tool', row_id: nextRow++, name: toolName, tool_call_id: toolResultId,
@@ -110,6 +135,8 @@ async function withGateway(fn, options = {}) {
     const assistantRowId = nextRow++;
     session.messages.push({
       role: 'assistant', row_id: assistantRowId, text: options.assistantText || '391 read_file is a fake mention',
+      ...(options.terminalStatus && options.terminalStatus !== 'complete' ? {} : { finish_reason: options.finalFinishReason || 'stop' }),
+      ...(options.exportFailureMarker ? { display_kind: 'failed_turn' } : {}),
     });
     session.running = false;
     session.seq += 1;
@@ -162,11 +189,12 @@ async function withGateway(fn, options = {}) {
     }
     if (method === 'session.events.since') {
       const events = session.events.filter((event) => event.seq > (params.last_seen || 0));
-      respond({ events, latest_seq: session.seq, truncated: false, count: events.length, epoch: session.epoch, open_requests: [] });
+      respond({ events, latest_seq: session.seq, truncated: options.truncatedReplay === true, count: events.length, epoch: session.epoch, open_requests: [] });
       return;
     }
     if (method === 'session.history') {
-      respond({ messages: session.messages, count: session.messages.length });
+      const messages = session.messages.map(({ tool_calls, finish_reason, ...message }) => message);
+      respond({ messages, count: messages.length });
       return;
     }
     if (method === 'prompt.submit') {
@@ -333,7 +361,11 @@ test('native turn correlates persisted rows after user_row_id and exposes only r
     assert.equal(inspected.tool_call_count, 1);
     assert.deepEqual(inspected.tool_names, ['read_file']);
     const serialized = JSON.stringify({ result, inspected });
-    for (const secret of ['native-tool-argument-sentinel', 'native-tool-result-sentinel', '/private/sentinel', 'must-not-escape']) {
+    for (const secret of [
+      'native-tool-argument-sentinel', 'native-tool-result-sentinel', '/private/sentinel', 'must-not-escape',
+      'native-export-argument-sentinel', 'native-export-result-sentinel', 'never expose native system prompt',
+      'never expose native config',
+    ]) {
       assert.equal(serialized.includes(secret), false);
     }
   });
@@ -524,7 +556,7 @@ test('concurrent same-key submission is single-shot and inspection reconciles a 
     await first;
   }, { holdTurn: true });
 
-  await withGateway(async ({ releaseTurn, promptSubmits, store }) => {
+  await withGateway(async ({ releaseTurn, promptSubmits, store, sessions }) => {
     const created = await createHermesSession({ title: 'Timed out native turn' });
     await assert.rejects(
       () => sendHermesSessionMessage(created.session_id, 'reconcile me', { requestId: 'timed_out_key' }),
@@ -540,6 +572,7 @@ test('concurrent same-key submission is single-shot and inspection reconciles a 
     assert.equal(guard.value.outcome_unknown, true);
     releaseTurn();
     await new Promise((resolve) => setTimeout(resolve, 30));
+    sessions.get(created.session_id).epoch = 'epoch-after-restart';
     const inspected = await getHermesSession(created.session_id, { requestId: 'timed_out_key' });
     assert.equal(inspected.execution.status, 'completed');
     assert.equal(inspected.execution.outcome_unknown, false);
@@ -575,7 +608,7 @@ test('correlated terminal event preserves failed and interrupted statuses', asyn
   }, { terminalStatus: 'interrupted' });
 });
 
-test('completion without its exact persisted final assistant row stays unknown and keeps the session blocked', async () => {
+test('an incomplete persisted final assistant row stays unknown and keeps the session blocked', async () => {
   await withGateway(async ({ store, releaseTurn, promptSubmits }) => {
     const created = await createHermesSession({ title: 'Unproven terminal event' });
     await assert.rejects(
@@ -603,30 +636,116 @@ test('completion without its exact persisted final assistant row stays unknown a
       { code: 'hermes_session_busy' },
     );
     assert.equal(promptSubmits(), 1);
-  }, { holdTurn: true, turnTimeoutMs: 1000, omitFinalAssistantRow: true });
+  }, { holdTurn: true, turnTimeoutMs: 1000, omitFinalAssistantRow: true, finalFinishReason: 'length' });
 });
 
-test('terminal event before submit acknowledgement cannot settle across a replay epoch change', async () => {
-  await withGateway(async ({ promptSubmits, store }) => {
-    const created = await createHermesSession({ title: 'Replay epoch changed during submit' });
+test('durable recovery refuses a request record with a different task digest', async () => {
+  await withGateway(async ({ store, releaseTurn, promptSubmits }) => {
+    const created = await createHermesSession({ title: 'Digest mismatch receipt' });
     await assert.rejects(
-      () => sendHermesSessionMessage(created.session_id, 'wait for acknowledgement', { requestId: 'epoch_changed_during_submit' }),
+      () => sendHermesSessionMessage(created.session_id, 'exact submitted task', { requestId: 'digest_mismatch_receipt' }),
       isUnknownTurnTimeout,
     );
-    const requestDigest = crypto.createHash('sha256').update(`${created.session_id}\0epoch_changed_during_submit`).digest('hex');
-    const guardDigest = crypto.createHash('sha256').update(created.session_id).digest('hex');
-    const record = await store.readVersionedJson(`m2/hermes/byid/${requestDigest}`);
-    const guard = await store.readVersionedJson(`m2/hermes/requests/${guardDigest}`);
-    assert.equal(record.value.status, 'timed_out');
-    assert.equal(record.value.outcome_unknown, true);
-    assert.equal(guard.value.status, 'timed_out');
-    assert.equal(guard.value.outcome_unknown, true);
-    const inspected = await getHermesSession(created.session_id, { requestId: 'epoch_changed_during_submit' });
-    assert.equal(promptSubmits(), 1);
+    const digest = crypto.createHash('sha256').update(`${created.session_id}\0digest_mismatch_receipt`).digest('hex');
+    const key = `m2/hermes/byid/${digest}`;
+    const record = await store.readVersionedJson(key);
+    await store.writeJson(key, { ...record.value, task_digest: 'a'.repeat(64) });
+    releaseTurn();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const inspected = await getHermesSession(created.session_id, { requestId: 'digest_mismatch_receipt' });
     assert.equal(inspected.execution.status, 'timed_out');
     assert.equal(inspected.execution.outcome_unknown, true);
-    assert.equal(inspected.execution.message, null);
+    assert.equal(promptSubmits(), 1);
+  }, { holdTurn: true, turnTimeoutMs: 1000 });
+});
+
+test('invalid native export identity, row order, failure marker, or tool pairing cannot recover an unknown request', async () => {
+  for (const fixtureOptions of [
+    { exportIdentityMismatch: true },
+    { exportRowSessionMismatch: true },
+    { exportReverseRows: true },
+    { exportFailureMarker: true },
+    { resultCallId: 'unpaired-result' },
+  ]) {
+    await withGateway(async ({ releaseTurn, promptSubmits, store }) => {
+      const created = await createHermesSession({ title: 'Reject invalid durable proof' });
+      await assert.rejects(
+        () => sendHermesSessionMessage(created.session_id, 'verify exact durable receipt', { requestId: 'invalid_export_receipt' }),
+        (error) => {
+          assert.ok(error.statusCode === 504 || error.code === 'hermes_history_invalid');
+          return true;
+        },
+      );
+      releaseTurn();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      let inspected = null;
+      try {
+        inspected = await getHermesSession(created.session_id, { requestId: 'invalid_export_receipt' });
+      } catch (error) {
+        assert.equal(error.code, 'hermes_history_invalid');
+      }
+      if (inspected) {
+        assert.equal(inspected.execution.status, 'timed_out');
+        assert.equal(inspected.execution.outcome_unknown, true);
+      } else {
+        const digest = crypto.createHash('sha256').update(`${created.session_id}\0invalid_export_receipt`).digest('hex');
+        const record = await store.readVersionedJson(`m2/hermes/byid/${digest}`);
+        assert.equal(record.value.status, 'timed_out');
+        assert.equal(record.value.outcome_unknown, true);
+      }
+      await assert.rejects(
+        () => sendHermesSessionMessage(created.session_id, 'must remain blocked', { requestId: 'another_invalid_receipt' }),
+        { code: 'hermes_session_busy' },
+      );
+      assert.equal(promptSubmits(), 1);
+    }, { holdTurn: true, turnTimeoutMs: 1000, ...fixtureOptions });
+  }
+});
+
+test('durable exact-row proof can settle across a replay epoch change', async () => {
+  await withGateway(async ({ promptSubmits }) => {
+    const created = await createHermesSession({ title: 'Replay epoch changed during submit' });
+    const result = await sendHermesSessionMessage(created.session_id, 'wait for acknowledgement', { requestId: 'epoch_changed_during_submit' });
+    assert.equal(promptSubmits(), 1);
+    assert.equal(result.status, 'completed');
+    assert.equal(result.outcome_unknown, false);
+    const inspected = await getHermesSession(created.session_id, { requestId: 'epoch_changed_during_submit' });
+    assert.equal(inspected.execution.status, 'completed');
+    assert.equal(inspected.execution.outcome_unknown, false);
   }, { terminalBeforeSubmitAck: true, changeEpochBeforeSubmitAck: true, turnTimeoutMs: 1000 });
+});
+
+test('foreign or truncated negative event frames cannot settle or advance the request cursor', async () => {
+  for (const fixtureOptions of [
+    { terminalStatus: 'error', changeEpochBeforeSubmitAck: true },
+    { terminalStatus: 'interrupted', truncatedReplay: true },
+  ]) {
+    await withGateway(async ({ store, promptSubmits }) => {
+      const created = await createHermesSession({ title: 'Untrusted negative event' });
+      await assert.rejects(
+        () => sendHermesSessionMessage(created.session_id, 'wait for trusted terminal frame', { requestId: 'foreign_negative_frame' }),
+        isUnknownTurnTimeout,
+      );
+      const requestDigest = crypto.createHash('sha256').update(`${created.session_id}\0foreign_negative_frame`).digest('hex');
+      const guardDigest = crypto.createHash('sha256').update(created.session_id).digest('hex');
+      const record = await store.readVersionedJson(`m2/hermes/byid/${requestDigest}`);
+      const guard = await store.readVersionedJson(`m2/hermes/requests/${guardDigest}`);
+      assert.equal(record.value.status, 'timed_out');
+      assert.equal(record.value.outcome_unknown, true);
+      assert.equal(record.value.last_seen_seq, record.value.baseline_seq);
+      assert.equal(guard.value.status, 'timed_out');
+      assert.equal(guard.value.outcome_unknown, true);
+      assert.equal(guard.value.last_seen_seq, record.value.baseline_seq);
+      const inspected = await getHermesSession(created.session_id, { requestId: 'foreign_negative_frame' });
+      assert.equal(inspected.execution.status, 'timed_out');
+      assert.equal(inspected.execution.outcome_unknown, true);
+      await assert.rejects(
+        () => sendHermesSessionMessage(created.session_id, 'do not duplicate', { requestId: 'foreign_negative_retry' }),
+        { code: 'hermes_session_busy' },
+      );
+      assert.equal(promptSubmits(), 1);
+    }, { terminalBeforeSubmitAck: true, turnTimeoutMs: 1000, ...fixtureOptions });
+  }
 });
 
 test('native RPC status allowlists public gateway metadata', async () => {
@@ -679,31 +798,33 @@ test('invalid IDs and named-secret extraction requests are rejected before netwo
 });
 
 test('orphan and mismatched native tool result rows are not counted as tool proof', async () => {
-  await withGateway(async () => {
+  for (const fixtureOptions of [{ omitToolCall: true }, { toolCallId: 'assistant-call-id', resultCallId: 'other-result-id' }]) {
+    await withGateway(async ({ promptSubmits }) => {
     const created = await createHermesSession({ title: 'Orphan tool row' });
-    await sendHermesSessionMessage(created.session_id, 'complete task', { requestId: 'm2_orphan' });
-    const inspected = await getHermesSession(created.session_id);
-    assert.equal(inspected.tool_call_count, 0);
-    assert.deepEqual(inspected.tool_names, []);
-  }, { omitToolCall: true });
-
-  await withGateway(async () => {
-    const created = await createHermesSession({ title: 'Mismatched tool row' });
-    await sendHermesSessionMessage(created.session_id, 'complete task', { requestId: 'm2_mismatch' });
-    const inspected = await getHermesSession(created.session_id);
-    assert.equal(inspected.tool_call_count, 0);
-    assert.deepEqual(inspected.tool_names, []);
-  }, { toolCallId: 'assistant-call-id', resultCallId: 'other-result-id' });
+      await assert.rejects(
+        () => sendHermesSessionMessage(created.session_id, 'complete task', { requestId: 'm2_invalid_tool_proof' }),
+        isUnknownTurnTimeout,
+      );
+      const inspected = await getHermesSession(created.session_id, { requestId: 'm2_invalid_tool_proof' });
+      assert.equal(inspected.execution.status, 'timed_out');
+      assert.equal(inspected.execution.outcome_unknown, true);
+      assert.equal(promptSubmits(), 1);
+    }, { turnTimeoutMs: 1000, ...fixtureOptions });
+  }
 });
 
 test('tool result IDs cannot borrow proof from a previous user turn', async () => {
   await withGateway(async () => {
     const created = await createHermesSession({ title: 'Turn-scoped tool proof' });
     await sendHermesSessionMessage(created.session_id, 'first task', { requestId: 'm2_turn1' });
-    await sendHermesSessionMessage(created.session_id, 'second task', { requestId: 'm2_turn2' });
-    const inspected = await getHermesSession(created.session_id);
+    await assert.rejects(
+      () => sendHermesSessionMessage(created.session_id, 'second task', { requestId: 'm2_turn2' }),
+      isUnknownTurnTimeout,
+    );
+    const inspected = await getHermesSession(created.session_id, { requestId: 'm2_turn2' });
+    assert.equal(inspected.execution.outcome_unknown, true);
     assert.equal(inspected.tool_call_count, 1);
-  }, { toolCallId: 'reused-call-id', resultCallId: 'reused-call-id', omitToolCallAfter: 2 });
+  }, { toolCallId: 'reused-call-id', resultCallId: 'reused-call-id', omitToolCallAfter: 2, turnTimeoutMs: 1000 });
 });
 
 test('oversized task is rejected before opening the native transport', async () => {

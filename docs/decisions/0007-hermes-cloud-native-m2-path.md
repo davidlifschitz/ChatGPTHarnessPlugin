@@ -20,6 +20,10 @@ The adapter uses OAuth authorization code with PKCE for the ChatGPT connector an
 
 Session creation and labeling use Hermes-native `session.create` and `session.title` operations. A submitted turn is correlated to Hermes' own `user_row_id`; the product does not copy the conversation transcript into a parallel session store. The adapter persists request-routing/correlation state, task digests, and bounded one-way credential fingerprints for safe output across rotation. It stores no stale raw credentials and does not expose Hermes row IDs, event cursors, or raw tool payloads. Fingerprint overflow fails closed before another submission.
 
+Hermes' RPC `session.history` is a display projection: the pinned first-party implementation omits assistant tool-call sidecars and terminal finish metadata. The adapter therefore reads the official protected session export through the same native PKCE bearer for authoritative persisted-row correlation and safe tool counts. It discards session configuration, system prompts, and raw tool payloads before constructing public output. This is a read of Hermes-owned history, not a replacement session API or a transcript mirror.
+
+An acknowledged request may recover after a bounded wait using a strict persisted receipt: exact session identity, accepted user row, matching task digest, fully paired tool invocations/results, and a normal final assistant row within that same user turn. Missing, conflicting, failed, or incomplete records remain outcome-unknown. Volatile events from another replay epoch are never accepted or relabeled to settle the request.
+
 Each logical task has a caller-supplied stable `request_id`. The same ID is reused only for retrying that same task; a different task requires a new ID. An ambiguous submission must be inspected by `request_id` before retrying, and the request guard must prevent duplicate execution. `get_hermes_session` exposes the correlated status (`submitted`, `running`, `completed`, `failed`, `interrupted`, or `timed_out`) and `outcome_unknown` flag. A successful task result means Hermes completed the task.
 
 ## Boundaries
@@ -38,7 +42,7 @@ The previous Render runtime and bridge files remain in the repository while this
 
 The current native implementation is still being finalized. This ADR records the chosen architecture; it does not claim that the final source revision has passed CI, has been deployed, or has passed live ChatGPT acceptance.
 
-The existing private USER-scope plugin is release `0.1.0`; the `0.2.0` package is prepared but not released. No native-path live bootstrap, session, plugin call, or agent restart has been performed. Do not merge draft PR #8 or begin M3 before the native M2 gate passes.
+The existing private USER-scope plugin remains release `0.1.0`; the `0.2.0` package is prepared but not released. Native bootstrap, refresh, authenticated direct MCP, model execution, and independently observed persisted terminal execution have been verified. The export-based adapter correction and updated-plugin ChatGPT acceptance are still in progress; see [live evidence](../implementation/m2-live-evidence-2026-10-08.md). Do not merge draft PR #8 or begin M3 before the native M2 gate passes.
 
 ## Acceptance
 

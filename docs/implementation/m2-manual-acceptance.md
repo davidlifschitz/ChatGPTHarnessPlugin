@@ -73,6 +73,10 @@ PASS:
 
 For every task, use one stable `request_id` per logical task. Reuse that ID only when retrying the same task; use a new ID for a new task. Do not automatically retry after a timeout or uncertain submission. Inspect `get_hermes_session` with the same `request_id` first. Its request status must be one of `submitted`, `running`, `completed`, `failed`, `interrupted`, or `timed_out`, with a separate `outcome_unknown` flag. This request status is the authoritative correlated completion state. A successful `send_hermes_task` result means completion, not acceptance alone.
 
+Hermes' RPC history is a display projection and does not retain every proof field. The adapter reads the official protected native session export server-side to correlate persisted invocations, results, and final rows. After a timeout, recovery requires the exact accepted user row and task digest, complete call/result pairs, and a normal final assistant row in that same turn. Foreign replay epochs, prose claiming tool use, missing metadata, failed-turn markers, and dangling calls cannot establish completion. Only safe counts/names and the sanitized assistant response are exposed to ChatGPT.
+
+Current partial evidence is recorded in [the October 8 live evidence](m2-live-evidence-2026-10-08.md). Direct MCP checks must not be recorded as updated-plugin ChatGPT acceptance.
+
 ## Test 4 — native tool-capable turn
 
 Prompt:
