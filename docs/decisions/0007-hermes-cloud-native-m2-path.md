@@ -42,7 +42,7 @@ The previous Render runtime and bridge files remain in the repository while this
 
 The current native implementation is still being finalized. This ADR records the chosen architecture; it does not claim that the final source revision has passed CI, has been deployed, or has passed live ChatGPT acceptance.
 
-The existing private USER-scope plugin remains release `0.1.0`; the `0.2.0` package is prepared but not released. Native bootstrap, refresh, authenticated direct MCP, model execution, and independently observed persisted terminal execution have been verified. The export-based adapter correction and updated-plugin ChatGPT acceptance are still in progress; see [live evidence](../implementation/m2-live-evidence-2026-10-08.md). Do not merge draft PR #8 or begin M3 before the native M2 gate passes.
+The existing private USER-scope plugin is release `0.2.1`, with the hosted stable Vercel endpoint. Native bootstrap, refresh, authenticated direct MCP, model execution, persisted terminal execution, timeout recovery, completed-request replay, and same-session memory have been verified. Updated-plugin ChatGPT web acceptance is blocked by the imported-MCP Desktop only classification and current personal-plan web capabilities; see the observed behavior and first-party sources in [live evidence](../implementation/m2-live-evidence-2026-10-08.md). Do not merge draft PR #8 or begin M3 before the native M2 gate passes.
 
 ## Acceptance
 

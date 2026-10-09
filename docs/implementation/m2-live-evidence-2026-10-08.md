@@ -33,7 +33,11 @@ M2 is not yet GREEN. Direct adapter evidence is separate from actual ChatGPT plu
 ## Actual ChatGPT and plugin state
 
 - Non-plugin arithmetic control: actual ChatGPT returned `551` without tool invocation in conversation `6ac81022-9fe8-83ea-b461-0e0a9d3ec90f`.
-- Existing private USER plugin remains version 0.1.0. The 0.2.0 package is prepared but not released.
+- Existing plugin `plugins_6abe73ee60b0819186f4c0932f1745d2` was updated in place to PRIVATE / USER version 0.2.1, release `pluginrel_6ac84d5ae8c88191aaf76207649c146d`. Source read-back preserves the M1 prompt and the stable hosted Vercel MCP connection. No new plugin or public publication was created.
+- Both portable and legacy MCP configurations contain only the remote HTTPS Streamable HTTP endpoint. No `.app.json`, app binding, stdio command, or local app dependency is present. The 0.2.1 update fixes the interface subtitle's documented length limit; the backend retains its normalized legacy MCP configuration.
+- The web plugin page still launches the desktop app. The private plugin is absent from the web Chat/Work picker. The account menu directly shows Plus and Personal account.
+- OpenAI [documents](https://help.openai.com/en/articles/20001504-importing-and-syncing-plugin-marketplaces-from-github) that imported MCP declarations can receive Desktop only even for remote HTTPS servers; adding an app reference does not remove the label. Extension availability is also separate from Desktop only restrictions, according to [Plugins in ChatGPT](https://help.openai.com/en/articles/20001256-plugins-in-chatgpt).
+- OpenAI's current [developer-mode documentation](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt) places full custom MCP web write support in Business, Enterprise, and Edu workspaces. This personal Plus account is outside that documented route. Package metadata offers no supported override. A plan/workspace or platform capability change is required for that web path while retaining the requested tools.
 - Updated-plugin M1 status/action, native creation, arithmetic, terminal execution, memory, negative/secret tests, and managed-agent restart acceptance remain pending.
 - No M1 canary action has been invoked in this M2 live run.
 

@@ -68,7 +68,7 @@ The gate is satisfied. This milestone proves the product channel, not Hermes yet
 
 ## M2 — Hermes Plugin End-to-End
 
-**Status:** in progress. The native Hermes Cloud adapter is present in the working tree, but final CI, deployment, and live ChatGPT acceptance are not verified.
+**Status:** BLOCKED on ChatGPT web host availability. The committed native adapter has passing CI and a matching deployed preview; private persistence, native refresh, real model/tool execution, timeout recovery, replay safety, and same-session memory passed directly. The existing PRIVATE / USER plugin is version 0.2.1 with its hosted Vercel endpoint. Imported-MCP Desktop only restrictions and the current personal-plan web capabilities prevent updated-plugin ChatGPT web acceptance; see [live evidence and first-party sources](docs/implementation/m2-live-evidence-2026-10-08.md).
 
 **Goal:** complete one real task through the existing private ChatGPT plugin, our Vercel MCP adapter, and the existing first-party managed Hermes Cloud agent `Fair-dinkum Esky`.
 
