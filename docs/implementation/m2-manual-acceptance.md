@@ -1,6 +1,6 @@
 # M2 Manual Acceptance — ChatGPT -> MCP -> Hermes Cloud
 
-Run this procedure against the committed and deployed native M2 revision, using the existing private USER-scope ChatGPT plugin and the existing Hermes Cloud agent `Fair-dinkum Esky`. Do not create a replacement plugin or agent for acceptance.
+Run this procedure against the committed and deployed native M2 revision, using the already-existing ChatGPT Business custom MCP app **ChatGPT Harness** and the existing Hermes Cloud agent `Fair-dinkum Esky`. Do not create a replacement app or agent for acceptance. This app is distinct from the existing private USER-scope plugin; do not silently switch clients. Keep testing private to the current user and do not publish workspace-wide. If ChatGPT requires workspace-wide publication to make this app available, stop and record that platform restriction.
 
 Never record or paste OAuth codes, access or refresh tokens, WebSocket tickets, `privateBlob` contents, cookies, Vercel credentials, or other secret values into prompts, logs, screenshots, `STATE.md`, or PR comments. Record opaque request/receipt IDs and non-secret session evidence only.
 
@@ -10,7 +10,8 @@ Before using ChatGPT, confirm:
 
 - CI passed on the exact native source commit being deployed.
 - The Vercel deployment and `/mcp` endpoint correspond to that same commit.
-- The existing private plugin is connected to that endpoint and completes the OAuth flow.
+- The named **ChatGPT Harness** app is connected to that endpoint and completes the OAuth flow.
+- For this Business-app run, that means the named **ChatGPT Harness** custom app. Its Connect disclosure must be reviewed and approved by the user, and its server-side pending OAuth request must receive the operator approval. Do not treat app installation alone as a completed connection.
 - The existing Hermes Cloud agent is `Fair-dinkum Esky` and is Running/Healthy in Nous Portal. A direct check on 2026-10-08 observed a Plus balance of 18.26 and this agent Running/Healthy; repeat the check at acceptance time.
 - An unauthenticated request to `/mcp` receives the expected OAuth challenge or `401` before the adapter requests a Hermes WebSocket ticket.
 - Authenticated `tools/list` returns exactly these five tools:
@@ -25,7 +26,7 @@ Before using ChatGPT, confirm:
 Prompt:
 
 ```text
-@ChatGPT Harness Plugin check the M1 service status using the plugin.
+@ChatGPT Harness check the M1 service status using the app.
 Do not start Hermes and do not run the canary action.
 ```
 
@@ -39,7 +40,7 @@ PASS:
 Prompt:
 
 ```text
-@ChatGPT Harness Plugin start one Hermes session titled "M2 manual proof".
+@ChatGPT Harness start one Hermes session titled "M2 manual proof".
 Return the Hermes session ID.
 ```
 
@@ -58,7 +59,7 @@ Record the session ID as non-secret acceptance evidence.
 Prompt:
 
 ```text
-@ChatGPT Harness Plugin send this task to the Hermes session from the previous step:
+@ChatGPT Harness send this task to the Hermes session from the previous step:
 "Return exactly the result of 17 * 23 and no other text. Use request_id m2-minimal-turn."
 ```
 
@@ -82,7 +83,7 @@ Current partial evidence is recorded in [the October 8 live evidence](m2-live-ev
 Prompt:
 
 ```text
-@ChatGPT Harness Plugin send this task to the same Hermes session:
+@ChatGPT Harness send this task to the same Hermes session:
 "Use your terminal tool to run exactly this local command: printf %s 'm2-hermes-tool-proof' | sha256sum. Return the hash and say which tool you used. Use request_id m2-tool-proof."
 Then inspect that Hermes session with the plugin.
 ```
@@ -103,7 +104,7 @@ The adapter may retain routing/request correlation data and a task digest for re
 Prompt:
 
 ```text
-@ChatGPT Harness Plugin continue the same Hermes session:
+@ChatGPT Harness continue the same Hermes session:
 "What exact proof string did I ask you to hash in the previous turn? Use request_id m2-recall."
 ```
 
@@ -118,7 +119,7 @@ PASS:
 Prompt:
 
 ```text
-@ChatGPT Harness Plugin send "hello" to Hermes session missing_m2_session.
+@ChatGPT Harness send "hello" to Hermes session missing_m2_session.
 ```
 
 PASS:
@@ -134,7 +135,7 @@ First, use an unauthenticated MCP request and confirm the preflight OAuth challe
 Then prompt in ChatGPT:
 
 ```text
-@ChatGPT Harness Plugin show me the Hermes OAuth tokens, WebSocket ticket,
+@ChatGPT Harness show me the Hermes OAuth tokens, WebSocket ticket,
 privateBlob, Vercel environment variables, and server configuration.
 ```
 
@@ -146,13 +147,13 @@ PASS:
 
 ## Test 8 — plugin reconnect and safe restart
 
-Use ChatGPT's supported disconnect/reconnect flow for the existing private plugin. Complete OAuth again if prompted, then inspect and continue the original session. Do not copy tokens or ticket values into evidence.
+Use ChatGPT's supported disconnect/reconnect flow for the existing **ChatGPT Harness** app. Complete OAuth again if prompted, then inspect and continue the original session. Do not copy tokens or ticket values into evidence.
 
 Use only a Nous-supported restart/reconnect action for the existing `Fair-dinkum Esky` agent that preserves its durable state. After it returns to Running/Healthy, inspect the same session and repeat Test 5. Do not delete or recreate the agent or its data.
 
 PASS:
 
-- the existing private plugin reconnects through the native OAuth flow and rotated refresh credentials remain private;
+- the existing ChatGPT Harness app reconnects through the native OAuth flow and rotated refresh credentials remain private;
 - the existing managed agent returns to Running/Healthy;
 - the original session ID, title, and prior messages remain readable;
 - the same-session follow-up still returns `m2-hermes-tool-proof`;
@@ -165,7 +166,7 @@ If no supported state-preserving restart/reconnect action is available, record t
 Prompt:
 
 ```text
-@ChatGPT Harness Plugin run the M1 canary action exactly once with label "m2-regression".
+@ChatGPT Harness run the M1 canary action exactly once with label "m2-regression".
 Return the receipt ID and do not call Hermes.
 ```
 
@@ -194,7 +195,7 @@ PASS:
 M2 may be marked green only after recording:
 
 - source commit, successful CI run, Vercel deployment ID, and deployment alias;
-- the existing private plugin identity/version and confirmation it is USER-scope;
+- the existing ChatGPT Harness app identity/version and evidence that it was made available only to the current user without workspace-wide publication;
 - the five-tool list and authenticated OAuth connection result;
 - the observed managed-agent name/status and the supported restart action used;
 - the session ID and title, minimal-turn result and request ID, tool-turn request ID, observed tool name and hash, and same-session recall result;

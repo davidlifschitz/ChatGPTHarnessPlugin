@@ -1,6 +1,6 @@
 # ChatGPT Harness Plugin — Verified Current State
 
-Last verified: 2026-10-08
+Last verified: 2026-10-09
 
 This file records verified reality, not intended future behavior.
 
@@ -8,7 +8,18 @@ This file records verified reality, not intended future behavior.
 
 **M2 — Hermes Plugin End-to-End**
 
-Status: **BLOCKED on ChatGPT web host availability — native adapter, persistence, refresh, model/tool execution, and same-session memory pass directly; updated-plugin ChatGPT acceptance remains pending**
+Status: **BLOCKED on protected operator approval for the Business app's MCP OAuth request — native adapter, persistence, refresh, model/tool execution, and same-session memory pass directly; ChatGPT acceptance remains pending**
+
+## Current M2 checkpoint — 2026-10-09
+
+- PR #8 remains OPEN, DRAFT, and unmerged at `43027acac53fed05648666c656a3f6bb27a6aaca`. GitHub Actions runs [37882154968](https://github.com/davidlifschitz/ChatGPTHarnessPlugin/actions/runs/37882154968) and [37882158776](https://github.com/davidlifschitz/ChatGPTHarnessPlugin/actions/runs/37882158776) passed. The matching Vercel preview is READY as deployment `dpl_4r1Wq2NwLLfEoS5tkzP89Xhqb5zF`; the stable M2 alias points to that deployment.
+- The stable `/mcp` endpoint returns the adapter's expected unauthenticated `401` OAuth challenge. OAuth authorization-server and protected-resource metadata return `200`; this observation does not show Vercel SSO intercepting the endpoint.
+- The existing Business custom MCP app **ChatGPT Harness** is a separate client from the private USER-scope plugin documented below. The app page identifies it as a Workspace plugin; admin currently shows availability Disabled, installation policy Unavailable, and zero tools. The app review dialog reports “No tools found.” No availability or workspace-publishing setting was changed.
+- ChatGPT's Connect flow reached the adapter's “Waiting for operator approval” page. Its safe request ID is `OUGosGM4g2em8E1WoKk03w`. The M2 preview has a masked `M2_OPERATOR_TOKEN` environment entry, but this execution environment has no local operator token or authenticated Vercel CLI, so the protected `/api/operator/approve` action has not been performed. ChatGPT has not completed OAuth and no authenticated `tools/list` result was obtained.
+- The user explicitly approved the ChatGPT disclosure that relevant chats and memories may be shared with this app, and that app data may be used for proactive suggestions when Memory is enabled. The OAuth request still awaits the independent server-side operator approval. No private ChatGPT data was sent to Hermes because no tool call was possible.
+- Current Nous Portal state: plan Plus, available balance `$17.68`, and the existing `Fair-dinkum Esky` agent is Running/Healthy. Its update control says it briefly restarts the instance and preserves data; no restart/update was performed while the app connection and proof session remain blocked.
+
+The requested Business-app run is not interchangeable with the existing USER-scope plugin release. Preserve both identities; acceptance through a direct MCP client or the older plugin does not prove the requested ChatGPT Business app flow.
 
 M1 remains green. The current M2 path uses the existing private USER-scope ChatGPT plugin, a single-operator Vercel MCP adapter, and the first-party managed Hermes Cloud agent `Fair-dinkum Esky`. A direct Nous Portal check on 2026-10-08 showed the Plus balance at 18.26 and the existing agent Running/Healthy. This confirms the selected account and agent are available; it does not prove that a task has passed through the native plugin path.
 
