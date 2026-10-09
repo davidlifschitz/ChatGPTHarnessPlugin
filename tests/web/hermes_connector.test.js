@@ -703,7 +703,7 @@ test('invalid native export identity, row order, failure marker, or tool pairing
 });
 
 test('durable exact-row proof can settle across a replay epoch change', async () => {
-  await withGateway(async ({ promptSubmits }) => {
+  await withGateway(async ({ store, promptSubmits }) => {
     const created = await createHermesSession({ title: 'Replay epoch changed during submit' });
     const result = await sendHermesSessionMessage(created.session_id, 'wait for acknowledgement', { requestId: 'epoch_changed_during_submit' });
     assert.equal(promptSubmits(), 1);
@@ -712,6 +712,19 @@ test('durable exact-row proof can settle across a replay epoch change', async ()
     const inspected = await getHermesSession(created.session_id, { requestId: 'epoch_changed_during_submit' });
     assert.equal(inspected.execution.status, 'completed');
     assert.equal(inspected.execution.outcome_unknown, false);
+    const requestDigest = crypto.createHash('sha256').update(`${created.session_id}\0epoch_changed_during_submit`).digest('hex');
+    const guardDigest = crypto.createHash('sha256').update(created.session_id).digest('hex');
+    const recordPath = `m2/hermes/byid/${requestDigest}`;
+    const guardPath = `m2/hermes/requests/${guardDigest}`;
+    const record = await store.readVersionedJson(recordPath);
+    const guard = await store.readVersionedJson(guardPath);
+    assert.equal(await store.compareAndSwapJson(recordPath, record.version, { ...record.value, last_seen_seq: 7 }), true);
+    assert.equal(await store.compareAndSwapJson(guardPath, guard.version, { ...guard.value, last_seen_seq: 7 }), true);
+    const replayed = await sendHermesSessionMessage(created.session_id, 'wait for acknowledgement', { requestId: 'epoch_changed_during_submit' });
+    assert.equal(replayed.status, 'completed');
+    assert.equal(promptSubmits(), 1);
+    assert.equal((await store.readVersionedJson(recordPath)).value.last_seen_seq, 7);
+    assert.equal((await store.readVersionedJson(guardPath)).value.last_seen_seq, 7);
   }, { terminalBeforeSubmitAck: true, changeEpochBeforeSubmitAck: true, turnTimeoutMs: 1000 });
 });
 

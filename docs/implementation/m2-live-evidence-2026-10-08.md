@@ -26,7 +26,8 @@ M2 is not yet GREEN. Direct adapter evidence is separate from actual ChatGPT plu
 - Arithmetic request `m2_11a1b2cc-ee25-44c2-8bb3-ff41705725a2` completed with exactly `391` and no tool calls.
 - Terminal request `m2_a0c4b085-37ef-43c0-88ff-01e6300881c5` was submitted once. A free-model capacity/rate limit exceeded the adapter's bounded wait. The command was never resubmitted while its outcome was uncertain.
 - A first-party native session export subsequently proved one `terminal` invocation and a matching persisted tool-result record with the same call ID, `chatcmpl-tool-83856b35b833c66a`, in the same session and after the accepted terminal user row. Independent local comparison verified the command exactly matched the requested proof command and its actual result contained the expected SHA-256. A final assistant row followed the paired records with native `finish_reason: stop`.
-- The adapter still reports outcome unknown and zero correlated tool calls. Its projection/reconciliation mismatch remains to be fixed; the assistant's prose alone is not treated as proof or completion.
+- Commit `9f512be64a0bf4ddb6f32db28f646751e84543bc` passed 109 Node tests, 11 Python tests, and syntax checks; GitHub runs `37870884951` and `37870886820` passed. Matching preview `dpl_B8Dwmcgu5FRVPFa6JGyvxQp4v1AX` is READY and serves the stable alias.
+- A deployed read of the original terminal request now returns `completed`, `outcome_unknown: false`, exactly one `terminal` call, and the expected hash. It recovered from the authoritative persisted receipt without resubmitting the command. A final cursor-preservation regression is being integrated before the completed-request replay check.
 - The downloaded native export is held privately outside the repository. Raw arguments, results, system prompts, and configuration are not reproduced here.
 
 ## Actual ChatGPT and plugin state
