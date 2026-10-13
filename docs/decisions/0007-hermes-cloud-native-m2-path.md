@@ -2,48 +2,44 @@
 
 Status: Accepted
 
-Date: 2026-10-08
+Decision date: 2026-10-08. Status/client reconciliation: 2026-10-13; no runtime architecture change.
 
-## Context
+## Context and selected client
 
-M2 must prove one real Hermes task from ChatGPT through the product's MCP boundary. The primary V1 surface is the user's existing private USER-scope ChatGPT plugin. The selected runtime is the user's existing first-party managed Hermes Cloud agent, `Fair-dinkum Esky`.
+M2 must prove a real Hermes task through the product's MCP boundary. The original October 8 client was the existing private USER-scope plugin. The October 9 checkpoint selects the existing ChatGPT Harness Business custom MCP app for the current user only. These are distinct identities; the older client's evidence cannot satisfy the requested Business-app gate. No replacement app, workspace publication, or replacement agent is authorized.
 
-An earlier M2 implementation used an operator-controlled Render Hermes process and a separate HTTP bridge. That work remains in the repository, and its CI and Vercel Preview evidence describe that older implementation. A `READY` deployment of that bridge does not prove the native Hermes Cloud path.
-
-Nous Portal's documented MCP server manages Hermes Cloud instances. M2 uses the Hermes Cloud account's native user authorization and task RPC path instead of treating the management MCP as a session API or exposing an `API_SERVER_KEY`.
+An older implementation used an operator-controlled Render runtime and HTTP bridge. Its files, CI, deployments, and reviews remain historical. ADR 0005 remains an allowed fallback, not the current selected runtime path. Nous Portal lifecycle MCP is not a task/session transport.
 
 ## Decision
 
-For M2, route the existing private ChatGPT plugin through the single-operator Vercel MCP adapter to the existing managed Hermes Cloud agent. Hermes Cloud remains authoritative for its process, model/provider authentication, native sessions, messages, tools, and durable history.
+Route the selected ChatGPT client through the single-operator Vercel MCP adapter to the existing managed Hermes Cloud agent Fair-dinkum Esky. Hermes Cloud remains authoritative for execution, provider/model configuration, native sessions/messages, tools, memory, and durable history.
 
-The adapter uses OAuth authorization code with PKCE for the ChatGPT connector and Hermes Cloud's native OAuth flow for upstream access. It handles rotating refresh credentials in private connector state. For task calls, it obtains a short-lived WebSocket ticket and presents that ticket in the Hermes WebSocket subprotocol, then sends Hermes-native JSON-RPC requests.
+Use authorization-code OAuth with PKCE at the ChatGPT boundary and native Hermes Cloud OAuth upstream, privately persisting rotating refresh credentials. Obtain a short-lived upstream WebSocket ticket and present it through the negotiated subprotocol; use Hermes-native JSON-RPC for tasks/session operations.
 
-Session creation and labeling use Hermes-native `session.create` and `session.title` operations. A submitted turn is correlated to Hermes' own `user_row_id`; the product does not copy the conversation transcript into a parallel session store. The adapter persists request-routing/correlation state, task digests, and bounded one-way credential fingerprints for safe output across rotation. It stores no stale raw credentials and does not expose Hermes row IDs, event cursors, or raw tool payloads. Fingerprint overflow fails closed before another submission.
+Use native session.create/session.title operations and correlate turns to Hermes' own user_row_id. Persist only necessary routing/request correlation, task digests, and bounded one-way credential fingerprints. Do not mirror transcripts, retain stale raw credentials, expose upstream row IDs/event cursors/raw tool payloads, or build a generic runtime. Fingerprint overflow fails closed before another submission.
 
-Hermes' RPC `session.history` is a display projection: the pinned first-party implementation omits assistant tool-call sidecars and terminal finish metadata. The adapter therefore reads the official protected session export through the same native PKCE bearer for authoritative persisted-row correlation and safe tool counts. It discards session configuration, system prompts, and raw tool payloads before constructing public output. This is a read of Hermes-owned history, not a replacement session API or a transcript mirror.
+## Recovery semantics
 
-An acknowledged request may recover after a bounded wait using a strict persisted receipt: exact session identity, accepted user row, matching task digest, fully paired tool invocations/results, and a normal final assistant row within that same user turn. Missing, conflicting, failed, or incomplete records remain outcome-unknown. Volatile events from another replay epoch are never accepted or relabeled to settle the request.
+RPC session.history is a display projection that can omit tool-call sidecars and terminal metadata. Read the official protected native export server-side for authoritative correlation, discarding system/configuration/raw tool data before sanitized output. This is a read of upstream-owned history, not a parallel transcript store.
 
-Each logical task has a caller-supplied stable `request_id`. The same ID is reused only for retrying that same task; a different task requires a new ID. An ambiguous submission must be inspected by `request_id` before retrying, and the request guard must prevent duplicate execution. `get_hermes_session` exposes the correlated status (`submitted`, `running`, `completed`, `failed`, `interrupted`, or `timed_out`) and `outcome_unknown` flag. A successful task result means Hermes completed the task.
+Recovery after a bounded wait requires exact session identity, accepted user row, task digest, paired invocation/result records, and a normal final assistant row in that turn. Missing/conflicting/failed/incomplete evidence leaves the outcome unknown. Foreign replay epochs cannot settle requests.
 
-## Boundaries
+A caller supplies one stable request_id per logical task. Reuse it only for retrying the same task, and inspect uncertain outcomes before any retry. Request inspection exposes submitted/running/completed/failed/interrupted/timed_out plus outcome_unknown. A successful task result means completion, not submission alone.
 
-- This is a single-operator M2 proof. It does not establish multi-user isolation, public onboarding, or billing; those remain M3 work.
-- Use the existing managed agent. This decision does not authorize creating, deleting, or replacing Hermes Cloud agents as part of the product flow.
-- Do not expose OAuth material, refresh credentials, WebSocket tickets, private connector state, or provider credentials to ChatGPT, browser code, logs, or source control.
-- Do not add a generic multi-harness control plane or a product-owned runtime, transcript, memory, or tool-execution system.
-- ADR 0005 remains the historical M1 operator-controlled runtime decision and a possible fallback if the selected managed path proves unsupported. It is not the current M2 runtime choice.
+## Security and product boundaries
 
-## Consequences
+This is single-operator M2, not proof of multi-user isolation, public onboarding, billing, or device/plan-wide availability. Keep OAuth material, tickets, private state, and provider credentials out of ChatGPT, browser code, prompts, outputs, logs, and source control. Existing task proof/spending evidence is not a new authorization for paid tasks or lifecycle actions.
 
-The live acceptance must validate the native authorization, refresh rotation, WebSocket-ticket exchange, JSON-RPC behavior, task correlation, and persistence of the existing Hermes session. Local implementation or tests alone do not satisfy M2.
+## Consequences and status
 
-The previous Render runtime and bridge files remain in the repository while this path is being verified. Their earlier tests, CI, and `READY` Preview must be labeled as historical evidence and must not be used to claim native M2 completion.
+Historical direct native bootstrap/refresh, persistence, discovery, model/terminal execution, recovery, replay, and same-session memory proof are recorded in [October 8/9 evidence](../implementation/m2-live-evidence-2026-10-08.md).
 
-The current native implementation is still being finalized. This ADR records the chosen architecture; it does not claim that the final source revision has passed CI, has been deployed, or has passed live ChatGPT acceptance.
+On October 13, GitHub reads confirmed passing CI checks and a successful Vercel deployment status for pre-update head 5ca7f79d2511b4ea77fe9186894b918844c2f424. That is not Business-app acceptance or a fresh alias/runtime check. New commits require new checks. See [refresh ledger](../implementation/m2-status-refresh-2026-10-13.md).
 
-The existing private USER-scope plugin is release `0.2.1`, with the hosted stable Vercel endpoint. Native bootstrap, refresh, authenticated direct MCP, model execution, persisted terminal execution, timeout recovery, completed-request replay, and same-session memory have been verified. Updated-plugin ChatGPT web acceptance is blocked by the imported-MCP Desktop only classification and current personal-plan web capabilities; see the observed behavior and first-party sources in [live evidence](../implementation/m2-live-evidence-2026-10-08.md). Do not merge draft PR #8 or begin M3 before the native M2 gate passes.
+The last recorded live blocker is protected operator approval. Current request state and app usability remain unverified. The earlier private plugin's Desktop-only/personal-plan limitation is historical client evidence, not the sole current Business-app blocker.
 
 ## Acceptance
 
-Use the exact five-tool, M1 regression, real-session, minimal-turn, terminal-tool, same-session, authorization, secret-boundary, reconnect, and safe-restart checks in [M2 Manual Acceptance](../implementation/m2-manual-acceptance.md). M2 remains in progress until that evidence is recorded for one committed source revision and its corresponding deployment.
+Run the [M2 manual acceptance procedure](../implementation/m2-manual-acceptance.md) through the existing Business app, private to the current user, against an identified committed/deployed native revision. Record five-tool discovery, M1 regressions, real session/tasks/tools, recall, negative/security checks, reconnect and safe persistence checks, and sanitized receipts/log correlation.
+
+M2 remains not green; PR #8 remains draft and unmerged. Do not merge or start M3 before the full gate passes. The original decision text and evidence remain in [Git history](https://github.com/davidlifschitz/ChatGPTHarnessPlugin/blob/5ca7f79d2511b4ea77fe9186894b918844c2f424/docs/decisions/0007-hermes-cloud-native-m2-path.md).

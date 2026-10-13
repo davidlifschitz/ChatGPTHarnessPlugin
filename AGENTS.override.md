@@ -1,47 +1,36 @@
 # ChatGPT Harness Plugin — Project Instructions
 
-Before substantive product work, read in order:
-
-1. `PROJECT.md`
-2. `STATE.md`
-3. the relevant milestone in `ROADMAP.md`
-4. `ARCHITECTURE.md`
-5. relevant ADRs under `docs/decisions/`
-6. relevant integration/product/implementation docs under `docs/`
-
-Treat this repository plus verified current upstream OpenAI/harness behavior as authoritative over older conversation history.
-
-## Development rules
-
-- Every substantial change maps to a roadmap milestone.
-- **ChatGPT is the primary V1 user surface.**
-- Start with the Plus personal-plugin path before public directory work.
-- The product is harness-neutral; **Hermes is the MVP harness and OpenClaw is the planned second harness**.
-- Separate harness software from hosting provider.
-- Verify whether ChatGPT or the selected harness already provides a capability before implementing a replacement.
-- Prefer upstream harness APIs and semantics over custom runtime state machines.
-- It is acceptable to operate the harness on product-controlled VM/container infrastructure when required for secure machine access.
-- Product-operated infrastructure must stay minimal and invisible to the user.
-- Keep the public MCP service focused on product-owned concerns: auth, authorization, user/runtime mapping, safe goal-level tools, and adapter transport.
-- Keep harness-specific auth/endpoints/transport/capability handling behind the smallest practical adapter seam.
-- Do not recreate harness sessions, runs, approvals, memory, skills, tools, model routing, or equivalent native runtime state by default.
-- Do not build a generic multi-harness control plane.
-- Do not delay Hermes to pre-build OpenClaw abstractions.
-- After the Hermes plugin path is stable, OpenClaw is next and should validate/revise the adapter boundary.
-- Keep harness/provider credentials server-side and out of plugin packages, browser code, prompts, logs, issues, PRs, and source control.
-- Use MCP OAuth 2.1 for authenticated public user access.
-- Validate tool inputs and authorization server-side; never rely on the model to enforce access.
-- Destructive/hard-to-reverse actions require explicit tool semantics and confirmation behavior.
-- Unsupported/unverified capabilities fail explicitly.
-- Update `STATE.md` only with verified reality.
-- Add an ADR when a long-lived architecture decision changes.
-- The existing Vercel web UI is diagnostics/admin/testing unless a later ADR promotes it to a primary consumer channel.
-- Do not begin plugin-directory polish before the private Plus -> MCP -> Hermes path works.
+Before substantive work read PROJECT.md, STATE.md, the relevant ROADMAP.md milestone, ARCHITECTURE.md, accepted ADRs, and relevant implementation/evidence documents. Use observed exact-revision behavior over older plans or conversation history.
 
 ## Current critical path
 
-The current milestone is **M1 — Plus Personal Plugin Proof**.
+M1 completed on 2026-10-01. M2 — Hermes Plugin End-to-End is active and not green. The requested client is the existing ChatGPT Harness Business app, distinct from the older PRIVATE / USER plugin. The selected runtime is the existing managed Hermes Cloud agent Fair-dinkum Esky via the native OAuth/WebSocket/JSON-RPC adapter under ADR 0007.
 
-Implement and deploy one minimal streamable-HTTP MCP endpoint, connect it from ChatGPT developer mode on Plus, and prove one read tool plus one controlled write/action tool.
+The last recorded live blocker is protected operator approval. Current request state, Business-app tool discovery/usability, and agent health must not be inferred from stale UI or historical evidence. See STATE.md, docs/implementation/m2-status-refresh-2026-10-13.md, and the manual acceptance procedure.
 
-Then proceed directly to **M2 — Hermes Plugin End-to-End** and prove a real Hermes task through that same MCP boundary.
+Do not reopen M1, merge draft PR #8, begin M3, publish workspace-wide, create a replacement app/agent, or perform new paid/model/lifecycle actions merely to refresh documentation. A documentation push may trigger existing CI/preview automation; new checks are not known until observed.
+
+## Development rules
+
+- Every substantive change maps to a roadmap milestone.
+- ChatGPT is the primary V1 surface; web UI is diagnostics/admin/testing.
+- Hermes is first; OpenClaw follows verified Hermes acceptance and later isolation/distribution work.
+- Separate harness software from hosting; ADR 0005 is an allowed fallback, not selected M2 transport.
+- Reuse upstream sessions/history, tools, memory, approvals, and model routing.
+- Do not introduce a generic runtime, task engine, model gateway, scheduler, or transcript mirror.
+- Keep harness-specific transport behind the smallest practical adapter seam.
+- Keep credentials, tickets, private connector state, and sensitive payloads out of packages, browser code, prompts, outputs, logs, issues, PRs, and source control.
+- Validate input/authentication/authorization server-side; model behavior is not access control.
+- Use stable request IDs and inspect outcome-unknown tasks before retrying.
+- Destructive or hard-to-reverse actions require explicit confirmation.
+- Unsupported/unverified capabilities fail explicitly.
+- Keep direct MCP proof separate from actual requested ChatGPT client acceptance.
+- Record source revision, observation date, CI/deployment basis, and verification limits.
+- Do not call old evidence current or mark M2 green from tests/deployment alone.
+- Preserve original historical ledgers and accepted decision history.
+- Long-lived design changes require an ADR.
+- Public distribution and multi-user isolation remain later gates.
+
+## Operator checkpoint
+
+Protected lookup/approval requires the original operator Bearer credential in a trusted environment. Never request its value in chat or export/decrypt/rotate a write-only Secret to bypass the checkpoint. Reconcile the old request before a new Connect attempt; approval is conditional on a live unexpired pending record and requires explicit authorization. Documentation updates do not authorize OAuth approval.
