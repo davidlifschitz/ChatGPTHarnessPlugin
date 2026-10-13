@@ -1,0 +1,73 @@
+name: M2 read-only ingress verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ingress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # A fresh runner has no MCP authorization. Authenticated acceptance runs
+      # through the operator and actual ChatGPT account; CI never creates
+      # Hermes sessions or automatically repeats model/tool tasks.
+      - name: Verify unauthorized rejection and public OAuth metadata
+        run: |
+          node - <<'NODE'
+          const assert = require('node:assert/strict');
+          const origin = 'https://hermes-consumer-layer-m1-git-m2-0159fc-davidlifschitzs-projects.vercel.app';
+          let stage = 'MCP authorization';
+          async function metadata(path) {
+            const response = await fetch(origin + path, {
+              redirect: 'manual', signal: AbortSignal.timeout(20000),
+              headers: { accept: 'application/json' },
+            });
+            assert.equal(response.status, 200);
+            let size = 0;
+            const chunks = [];
+            for await (const chunk of response.body) {
+              size += chunk.length;
+              assert.ok(size <= 32768);
+              chunks.push(chunk);
+            }
+            return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          }
+          (async () => {
+            const response = await fetch(origin + '/mcp', {
+              method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(20000),
+              headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {
+                protocolVersion: '2025-11-25', capabilities: {},
+                clientInfo: { name: 'm2-ingress-check', version: '1.0.0' },
+              } }),
+            });
+            assert.equal(response.status, 401);
+            assert.ok(response.headers.get('www-authenticate')?.includes(origin + '/.well-known/oauth-protected-resource'));
+            await response.body?.cancel();
+
+            stage = 'Protected-resource metadata';
+            const resource = await metadata('/.well-known/oauth-protected-resource');
+            assert.equal(resource.resource, origin + '/mcp');
+            assert.deepEqual(resource.authorization_servers, [origin]);
+            assert.ok(resource.scopes_supported.includes('mcp:tools'));
+
+            stage = 'OAuth server metadata';
+            const server = await metadata('/.well-known/oauth-authorization-server');
+            assert.equal(server.issuer, origin);
+            assert.equal(server.authorization_endpoint, origin + '/oauth/authorize');
+            assert.equal(server.token_endpoint, origin + '/oauth/token');
+            assert.deepEqual(server.code_challenge_methods_supported, ['S256']);
+            console.log(JSON.stringify({ unauthorized_rejected: true, resource_metadata: true, oauth_metadata: true }));
+          })().catch(() => {
+            console.error('M2 ingress verification failed at ' + stage + '.');
+            process.exitCode = 1;
+          });
+          NODE

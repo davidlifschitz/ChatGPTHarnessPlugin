@@ -1,165 +1,50 @@
 # ChatGPT Harness Plugin — Project Overview
 
-This repository is the canonical source of truth for a ChatGPT-native consumer distribution layer over general-purpose agent harnesses.
+## Product objective
 
-## End goal
+Give users an agent capability inside ChatGPT, not infrastructure administration. A user should be able to delegate work, inspect progress, and continue a prior session without understanding harnesses, providers, MCP, containers, tunnels, API keys, or runtime processes. Starting/stopping work is a product goal, not a claim that every control is currently exposed.
 
-A normal user should be able to stay inside ChatGPT and say things like:
-
-- "start an agent to research this";
-- "continue the agent I was using yesterday";
-- "show me what my agent is doing";
-- "stop that run";
-- "hand this task to my Hermes agent."
-
-The user should not need to understand which harness, model provider, cloud host, MCP server, container, tunnel, API key, or runtime process is underneath.
-
-The customer experiences an agent capability inside ChatGPT, not infrastructure administration.
-
-## DevDay 2026 reset
-
-The previous project plan made a standalone mobile-friendly web app the V1 distribution channel and deferred ChatGPT to V2+.
-
-That sequencing is no longer current.
-
-OpenAI now documents:
-
-- full read/write MCP support in ChatGPT developer mode for Plus and Pro;
-- personal plugin testing by connecting a deployed HTTPS MCP endpoint;
-- plugin packages containing skills, MCP servers, or both;
-- public submission to a universal plugin directory shared by ChatGPT and Codex;
-- OAuth 2.1 for authenticated MCP servers.
-
-Sources:
-
-- https://developers.openai.com/chatgpt
-- https://developers.openai.com/plugins/quickstart
-- https://developers.openai.com/plugins/concepts/plugins
-- https://developers.openai.com/plugins/deploy/submission
-- https://developers.openai.com/plugins/build/auth
-
-Therefore **ChatGPT becomes the primary V1 user surface**.
-
-A ChatGPT Plus account is sufficient for the documented developer-mode MCP testing path. Public submission additionally requires the applicable OpenAI developer identity/review requirements; it does not make ChatGPT Business a prerequisite for this project's MVP.
-
-## Harness strategy
-
-The product is multi-harness by design and sequential by implementation.
-
-- **Hermes is the MVP harness.** Its API server exposes chat, sessions, runs, control, capability discovery, skills/toolsets, and memory scoping.
-- **OpenClaw is the planned second harness.** It validates the adapter boundary against a materially different runtime.
-- Additional harnesses are added only for concrete user value.
-
-Do not delay Hermes to solve hypothetical cross-harness abstractions.
-
-## Product boundary
-
-The durable product boundary is the public HTTPS MCP service used by the ChatGPT plugin.
-
-The plugin package may contain:
-
-- skills/instructions for repeatable workflows;
-- the MCP server declaration;
-- optional UI later if a workflow benefits from it.
-
-The MCP service may own shared product concerns such as:
-
-- end-user authentication and authorization;
-- user-to-harness/runtime mapping;
-- safe goal-level tool definitions;
-- harness connection configuration;
-- product permissions/entitlements where needed;
-- simplified errors and confirmations;
-- later billing/product analytics if justified;
-- event delivery/automation when justified.
-
-Each harness remains authoritative for its own runtime semantics and durable agent state.
-
-## Runtime strategy
-
-Harness software and harness hosting are separate decisions.
-
-For Hermes, the product needs a machine-accessible API origin that the MCP server can reach safely. The official Hermes API server requires bearer authentication and binds to loopback by default.
-
-Sources:
-
-- https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
-- https://hermes-agent.nousresearch.com/docs/reference/environment-variables
-- https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration
-
-The documented Nous Portal MCP endpoint manages Hermes Cloud instance lifecycle. It does not, in its documented tool surface, provide the session/chat API required by this product:
-
-- https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
-
-Accordingly, ADR 0005's operator-controlled runtime option remains valid until a supported managed-cloud machine ingress for Hermes chat/session control is verified.
-
-## Sign in with ChatGPT and Hermes
-
-OpenAI currently lists Hermes Agent as a participating app for eligible Plus/Pro ChatGPT plan usage:
-
-- https://learn.chatgpt.com/docs/sign-in-with-chatgpt
-
-Treat that as a potentially useful provider/auth simplification inside Hermes.
-
-Do **not** treat it as proof that ChatGPT can directly reach a Hermes runtime, or as a substitute for the plugin MCP transport. Those are separate integration boundaries unless verified otherwise.
-
-## Plugin tool philosophy
-
-Expose user outcomes, not an internal API dump.
-
-The first tool surface should stay small and may cover:
-
-- agent/session discovery;
-- starting work;
-- sending/continuing work;
-- status/output retrieval;
-- stopping active work.
-
-OpenAI's guidance:
-
-- https://developers.openai.com/plugins/plan/tools
-
-## Authentication strategy
-
-Development:
-- connect the deployed MCP endpoint as a personal plugin in ChatGPT developer mode.
-
-Public/multi-user:
-- use MCP OAuth 2.1;
-- verify authorization on every server request;
-- scope each tool call to the authenticated user;
-- keep harness/provider secrets server-side.
-
-Source:
-
-- https://developers.openai.com/plugins/build/auth
-
-## Standalone web strategy
-
-The existing Vercel web surface is retained as a validation/admin tool, not as the default consumer distribution channel.
-
-Build a standalone consumer frontend only if a verified plugin limitation or product requirement justifies it.
-
-## Development rules
-
-1. ChatGPT is the primary V1 user surface.
-2. A Plus personal-plugin proof comes before public distribution work.
-3. Verify upstream harness capabilities before designing replacements.
-4. Separate harness choice from hosting-provider choice.
-5. Keep harness/provider secrets server-side.
-6. Prefer harness-native sessions, runs, memory, tools, skills, approvals, and model routing.
-7. Keep harness-specific transport behind the smallest practical adapter seam.
-8. Do not build a generic multi-harness control plane.
-9. Do not generalize the adapter beyond evidence from implemented harnesses.
-10. Hermes ships first; OpenClaw follows after the Hermes plugin path works.
-11. Use OAuth 2.1 for authenticated public MCP access.
-12. Destructive or hard-to-reverse actions require explicit safe tool semantics/confirmation.
-13. Update `STATE.md` only with verified reality.
-14. Long-lived architecture changes require an ADR.
-15. Treat the old Vercel consumer UI as diagnostic/admin infrastructure unless a future ADR promotes it again.
+ChatGPT is the primary V1 surface. Hermes is the MVP harness; OpenClaw is planned second. The standalone Vercel web surface is diagnostics/admin/testing unless a future ADR changes that role.
 
 ## Current milestone
 
-**M1 — Plus Personal Plugin Proof**
+M1 — Plus Personal Plugin Proof completed on 2026-10-01.
 
-Prove that ChatGPT developer mode on Plus can invoke our own deployed HTTPS MCP server and complete both a read tool and a controlled write/action tool. Then connect that same MCP boundary to a real Hermes runtime.
+M2 — Hermes Plugin End-to-End is active and not green. The current acceptance target is the existing ChatGPT Harness Business custom MCP app, for the current user only, through the Vercel adapter to the existing managed Hermes Cloud agent Fair-dinkum Esky. The older private USER-scope plugin is not an interchangeable acceptance client.
+
+The last recorded live blocker is server-side operator approval; request status, app usability, and live agent health have not been freshly verified on October 13. Exact-head GitHub CI/deployment status was rechecked; see [STATE.md](STATE.md) and [the refresh ledger](docs/implementation/m2-status-refresh-2026-10-13.md).
+
+## Product and harness boundaries
+
+The product owns focused MCP tools, authentication/authorization, user/runtime mapping, account linkage, safe errors/confirmation, and minimal routing/correlation state. Multi-user entitlements, onboarding, billing, analytics, and events are later work when justified.
+
+Each harness owns execution, native sessions/history, memory, tools/skills, approvals, and model/provider routing. Do not mirror transcripts or build a generic runtime, model gateway, scheduler, or cross-harness state machine. Keep harness-specific transport behind the smallest useful adapter seam.
+
+## Runtime strategy
+
+Harness choice and hosting choice are separate. ADR 0007 selects native Hermes Cloud OAuth, short-lived WebSocket tickets, and JSON-RPC for M2. ADR 0005's operator-controlled runtime option remains a fallback; older Render/Railway work is not current acceptance evidence. The Portal lifecycle MCP interface must not be confused with task/session transport.
+
+## Authentication and availability
+
+M2 already implements a single-operator OAuth/PKCE boundary and private rotating upstream credentials. That does not prove unrelated-user isolation; M3 must establish user scoping and cross-user denial.
+
+M1 empirically proved the user's Plus personal-plugin read/action path on October 1. It does not guarantee current Business-app connection, current plan-wide availability, mobile support, public approval, or Hermes use of Sign in with ChatGPT. Those are separate capabilities requiring their own evidence.
+
+## Execution rules
+
+- Reuse upstream harness capabilities before implementing replacements.
+- Keep all credentials and private connector state server-side.
+- Validate inputs and authorization independently of model behavior.
+- Use a stable request ID per logical task and inspect uncertain outcomes before retrying.
+- Destructive or hard-to-reverse operations require explicit confirmation.
+- Unsupported or unverified capabilities fail explicitly.
+- Update state only from observed behavior or clearly dated source evidence.
+- Separate direct MCP evidence from actual ChatGPT client acceptance.
+- Preserve historical evidence without presenting it as current live verification.
+- Keep the existing app and agent; do not publish workspace-wide or create replacements for acceptance.
+- Do not merge draft PR #8 or start M3 before the complete M2 gate passes.
+- Long-lived architecture changes require an ADR; this reconciliation changes no runtime design.
+
+## Source of truth
+
+Use [STATE.md](STATE.md), [ROADMAP.md](ROADMAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), and accepted [ADRs](docs/decisions/). The definitive M2 procedure is [manual acceptance](docs/implementation/m2-manual-acceptance.md). Historical upstream references and detailed investigation remain in the October 8/9 evidence ledger and Git history; they are not newly verified platform claims.

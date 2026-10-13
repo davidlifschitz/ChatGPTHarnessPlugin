@@ -1,177 +1,61 @@
 # ChatGPT Harness Plugin
 
-A thin ChatGPT-native consumer layer over powerful general-purpose agent harnesses.
+A thin ChatGPT-native consumer layer over general-purpose agent harnesses. ChatGPT is the primary user surface; Hermes is the first harness; OpenClaw is planned second.
 
-**ChatGPT is the primary user surface. Hermes is the first harness. OpenClaw is the planned second harness.**
+## Current status
+
+Documentation reconciled on 2026-10-13. M1 is complete. M2 remains blocked at the last recorded live checkpoint by operator approval for the existing ChatGPT Harness Business app. Its current OAuth request status and current-user-only usability have not been reverified. PR #8 remains open, draft, and unmerged.
+
+Fresh GitHub checks confirmed passing test jobs and a successful Vercel deployment status for pre-update head `5ca7f79d2511b4ea77fe9186894b918844c2f424`. This is not a new ChatGPT end-to-end acceptance result. Any documentation commit needs its own CI/deployment checks before exact-head claims are updated.
+
+See [STATE.md](STATE.md) and [October 13 verification](docs/implementation/m2-status-refresh-2026-10-13.md). `main` contains the merged M1 baseline; active M2 implementation and documentation are on `m2/hermes-e2e` in [PR #8](https://github.com/davidlifschitz/ChatGPTHarnessPlugin/pull/8). Do not merge M2 just to synchronize the default branch.
 
 ## Goal
 
-A normal person should be able to open ChatGPT on a supported device, ask for a task to be delegated to an agent, and continue using that agent without understanding terminals, MCP, API keys, model providers, VPSs, tunnels, containers, or harness administration.
+A user should delegate work and continue an agent session inside ChatGPT without managing terminals, MCP, API keys, model providers, cloud hosts, containers, tunnels, or harness administration. The infrastructure can be technical; the user experience cannot be.
 
-The infrastructure can be technical. The user experience cannot be.
-
-## Why this project changed after DevDay 2026
-
-OpenAI's current developer documentation now makes the path we originally wanted first-class:
-
-- ChatGPT developer mode provides full MCP support, including read and write tools, for Plus and Pro.
-- A plugin can package skills, an MCP server connection, or both.
-- Public plugins can be submitted to a universal directory shared by ChatGPT and Codex.
-- Authenticated MCP plugins use the MCP OAuth 2.1 authorization model.
-- Hermes Agent is listed as a participating "Sign in with ChatGPT" app for eligible Plus/Pro plan usage.
-
-Authoritative references:
-
-- https://developers.openai.com/chatgpt
-- https://developers.openai.com/plugins/quickstart
-- https://developers.openai.com/plugins/concepts/plugins
-- https://developers.openai.com/plugins/deploy/submission
-- https://developers.openai.com/plugins/build/auth
-- https://learn.chatgpt.com/docs/sign-in-with-chatgpt
-
-These changes remove the previous reason to make a standalone consumer web app the primary V1 distribution channel.
-
-## System shape
+## Selected M2 path
 
 ```text
-User in ChatGPT
-      |
-      v
-ChatGPT Plugin
-  - skills/instructions
-  - MCP connection
-  - optional UI later
-      |
-      v
-Public HTTPS MCP Control Surface
-  - user authentication/authorization
-  - goal-level agent tools
-  - user -> harness/runtime mapping
-  - safe confirmation/error handling
-      |
-      v
-Thin Harness Adapter
-      |
-      +-------> Hermes (MVP)
-      |
-      +-------> OpenClaw (next)
-      |
-      +-------> future harnesses when justified
-      |
-      v
-Harness-native runtime/state/tools/memory
-      |
-      v
-Model/provider services
+Existing ChatGPT Harness Business app
+  -> authenticated HTTPS Vercel MCP adapter
+  -> Hermes Cloud native OAuth, WebSocket ticket, and JSON-RPC
+  -> existing managed Hermes agent Fair-dinkum Esky
+  -> Hermes-native execution, tools, sessions, history, and memory
 ```
 
-The product reuses each harness's execution, sessions, runs, memory, tools, skills, approvals, and model routing. It does not rebuild those systems into another agent platform.
+The older PRIVATE / USER plugin is a separate historical client. Its M1 success and direct MCP tests do not satisfy Business-app acceptance. Keep the requested Business app private to the current user; stop if workspace-wide publication is required.
 
-## MVP: Hermes through ChatGPT
+The five-tool M2 surface is:
 
-The first end-to-end proof is no longer "phone/browser -> custom web app -> Hermes."
+- `get_m1_status`
+- `run_m1_canary_action`
+- `start_hermes_session`
+- `send_hermes_task`
+- `get_hermes_session`
 
-It is:
+Direct adapter evidence covers native credential refresh/persistence, real arithmetic and terminal execution, timeout recovery, completed-request replay, and same-session recall. The Business-app invocation gate remains unproven.
 
-```text
-ChatGPT Plus developer mode
-  -> personal plugin
-  -> public HTTPS /mcp endpoint
-  -> Hermes adapter
-  -> real Hermes API server
-  -> one real tool-capable Hermes task
-```
+## Architecture and boundaries
 
-The existing Vercel test surface and Hermes connector code remain useful as diagnostics and implementation scaffolding. They are no longer the product's primary consumer UX.
+The MCP service owns authentication, authorization, user/runtime mapping, focused tool mediation, and minimal routing/correlation state. Hermes owns its runtime semantics and durable agent history. Do not rebuild an agent runtime, mirror transcripts, introduce a generic task engine/model gateway, or pre-generalize for OpenClaw.
 
-## Hermes runtime connectivity
+[ADR 0006](docs/decisions/0006-chatgpt-plugin-primary-channel.md) makes ChatGPT the primary consumer channel. [ADR 0007](docs/decisions/0007-hermes-cloud-native-m2-path.md) selects native Hermes Cloud for M2. The operator-controlled runtime option in [ADR 0005](docs/decisions/0005-operator-controlled-harness-runtime.md) remains a fallback, not the selected critical path. Older Render bridge files and their deployments are historical evidence only. Nous Portal lifecycle MCP is not the task/session transport.
 
-Hermes exposes the primitives we need: chat, sessions, runs, streaming, approvals/control, capabilities, skills/toolsets, and stable memory/session scoping.
+## Safety and acceptance
 
-References:
+Keep all OAuth credentials, tickets, harness/provider secrets, and private connector state server-side and out of prompts, browser code, outputs, logs, and source control. Inspect an ambiguous task by its stable `request_id` before retrying; do not resubmit an uncertain command. Destructive or hard-to-reverse actions require explicit confirmation.
 
-- https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
-- https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration
+M1's actual Plus personal-plugin proof on October 1 does not establish current plan-wide or device-wide availability for M2. Do not assume mobile support, public distribution, multi-user isolation, or Sign in with ChatGPT model-provider use has been proven.
 
-The Hermes API server requires `API_SERVER_KEY` and binds to `127.0.0.1` by default. The plugin MCP server must therefore reach a secure machine-accessible Hermes origin without exposing the Hermes key to ChatGPT or browser code.
+Run [M2 manual acceptance](docs/implementation/m2-manual-acceptance.md) through the existing Business app before marking M2 green, merging PR #8, or starting M3. The standalone Vercel UI is diagnostics/admin/testing, not the primary consumer UX.
 
-Nous Portal's documented MCP server can manage Hermes Cloud instances, including listing, creating, starting, stopping, restarting, and destroying them. Its documented tool surface does not currently establish a session/chat transport into an instance:
+## Project documents
 
-- https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp
+1. [PROJECT.md](PROJECT.md) — product contract
+2. [STATE.md](STATE.md) — verified reality and uncertainty
+3. [ROADMAP.md](ROADMAP.md) — sequencing and gates
+4. [ARCHITECTURE.md](ARCHITECTURE.md) — durable boundaries
+5. [Architecture decisions](docs/decisions/)
 
-Until a supported managed-cloud chat ingress is verified, operator-controlled Hermes hosting remains an acceptable runtime implementation detail under ADR 0005.
-
-## Initial user outcomes
-
-Do not mirror the raw Hermes API as dozens of low-level plugin tools. OpenAI's tool guidance says tools should map to recognizable user goals.
-
-The initial MCP surface should prove outcomes such as:
-
-- find or select an agent;
-- start a new agent/session;
-- send work to an agent;
-- inspect current status or recent output;
-- continue an existing agent/session;
-- stop an active run when supported.
-
-Exact tool names are implementation details and should be finalized from the real Hermes path.
-
-Reference:
-
-- https://developers.openai.com/plugins/plan/tools
-
-## Authentication and secrets
-
-For personal development, use ChatGPT developer mode against the deployed MCP endpoint.
-
-For multi-user/public operation:
-
-- authenticate end users using the MCP OAuth 2.1 flow;
-- enforce authorization in the MCP server on every request;
-- keep Hermes/API/provider credentials server-side;
-- never expose `API_SERVER_KEY` as a plugin credential;
-- require confirmation for destructive or hard-to-reverse actions.
-
-References:
-
-- https://developers.openai.com/plugins/build/auth
-- https://developers.openai.com/plugins/guides/security-privacy
-
-## OpenClaw
-
-OpenClaw follows after the Hermes plugin path is real. Its job is both to add a useful second harness and to reveal which adapter behaviors are genuinely shared.
-
-Do not pre-build a generic multi-harness runtime platform.
-
-## Standalone web surface
-
-The current Vercel UI remains useful for:
-
-- diagnostics;
-- direct adapter testing;
-- admin/operations;
-- fallback testing when ChatGPT-specific behavior must be isolated.
-
-It is not the primary V1 user experience unless plugin limitations discovered during implementation force that decision to be revisited.
-
-## Explicit non-goals
-
-- rebuilding harness execution;
-- mirroring harness sessions/runs/memory;
-- building a generic task engine or model gateway;
-- making users operate VPSs, tunnels, Docker, harness CLIs, or API keys;
-- coupling the product to Nous-managed Hermes Cloud;
-- forcing OpenClaw into fake Hermes semantics;
-- building a standalone consumer app before the plugin path proves it is required.
-
-## Project truth
-
-Read in order:
-
-1. [`PROJECT.md`](PROJECT.md)
-2. [`STATE.md`](STATE.md)
-3. [`ROADMAP.md`](ROADMAP.md)
-4. [`ARCHITECTURE.md`](ARCHITECTURE.md)
-5. [`docs/decisions/`](docs/decisions/)
-
-Current execution order: **Plus personal plugin proof -> real Hermes plugin path -> auth/isolation -> public plugin submission -> OpenClaw.**
+Sequence: completed M1 -> Business-app Hermes M2 acceptance -> multi-user isolation -> public distribution -> justified UX enhancements -> OpenClaw.
